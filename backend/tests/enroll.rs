@@ -62,6 +62,7 @@ async fn enroll_creates_user_worker_and_returns_proxy_credentials() {
     );
     assert_eq!(json["proxy_host"], "127.0.0.1");
     assert_eq!(json["proxy_port"], 3333);
+    assert_eq!(json["proxy_password"], "xpool-dev");
 
     let user_id = Uuid::parse_str(json["user_id"].as_str().expect("user id")).expect("uuid");
     let worker_id = Uuid::parse_str(json["worker_id"].as_str().expect("worker id")).expect("uuid");

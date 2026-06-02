@@ -4,7 +4,9 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY backend/Cargo.toml backend/Cargo.toml
+COPY cli/Cargo.toml cli/Cargo.toml
 COPY backend/src backend/src
+COPY cli/src cli/src
 
 RUN cargo build --release -p xpool-backend
 
