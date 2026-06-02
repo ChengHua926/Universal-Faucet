@@ -29,14 +29,25 @@ pub struct AppState {
     pool: PgPool,
     proxy_host: String,
     proxy_port: u16,
+    proxy_password: String,
 }
 
 impl AppState {
     pub fn new(pool: PgPool, proxy_host: impl Into<String>, proxy_port: u16) -> Self {
+        Self::with_proxy_password(pool, proxy_host, proxy_port, "xpool-dev")
+    }
+
+    pub fn with_proxy_password(
+        pool: PgPool,
+        proxy_host: impl Into<String>,
+        proxy_port: u16,
+        proxy_password: impl Into<String>,
+    ) -> Self {
         Self {
             pool,
             proxy_host: proxy_host.into(),
             proxy_port,
+            proxy_password: proxy_password.into(),
         }
     }
 }
@@ -105,6 +116,7 @@ async fn enroll(
             worker_token,
             proxy_host: state.proxy_host,
             proxy_port: state.proxy_port,
+            proxy_password: state.proxy_password,
         }),
     ))
 }
@@ -183,6 +195,7 @@ struct EnrollResponse {
     worker_token: String,
     proxy_host: String,
     proxy_port: u16,
+    proxy_password: String,
 }
 
 #[derive(Debug, Serialize)]

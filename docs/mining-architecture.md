@@ -491,7 +491,7 @@ Run one host miner against the Dockerized proxy:
 xmrig \
   -o 127.0.0.1:3333 \
   -u local-worker-1 \
-  -p test \
+  -p xpool-dev \
   --rig-id local-worker-1 \
   -t 1 \
   --coin monero
@@ -507,11 +507,14 @@ Team workflow:
 1. Everyone runs the same docker compose stack.
 2. Everyone uses the same pinned XMRig/XMRig Proxy versions.
 3. Each developer uses a unique local worker name:
-   alice.local1
-   bob.local1
-   charlie.local1
-4. Local tests mine through local proxy to HashVault test wallet/account.
-5. Shared integration tests assert /1/workers parsing and DB point deltas.
+   manual tests: alice.local1, bob.local1, charlie.local1
+   CLI tests: backend-generated w_<random_id>
+4. Manual miners use the shared local proxy password from
+   XMRIG_PROXY_WORKER_PASSWORD.
+5. CLI miners use backend-generated worker names and the proxy password
+   returned by /api/enroll.
+6. Local tests mine through local proxy to HashVault test wallet/account.
+7. Shared integration tests assert /1/workers parsing and DB point deltas.
 ```
 
 ## Local Test Cases
@@ -567,6 +570,14 @@ paper-share validation:
   enrolled backend worker w_32e47f31771c457f96a19e617421a327
   proxy reported 4 accepted shares at custom diff 10000
   backend leaderboard reported paperdemo with 40000 points and 4 accepted shares
+
+CLI-managed mining validation:
+  xpool enroll created worker w_703c2ba8230742ca9737b1e335a350f8
+  xpool start launched host XMRig with 1 thread against 127.0.0.1:3333
+  proxy /1/workers reported 39 accepted shares for that worker
+  backend leaderboard reported clidemo2 with 390000 points and 39 shares
+  xpool leaderboard printed the same paper-share totals
+  xpool stop terminated the host XMRig process
 ```
 
 Need to test next:
@@ -576,6 +587,7 @@ Need to test next:
 2. /1/workers shows separate local counters
 3. HashVault wallet API continues showing proxy wallet/account active
 4. status and realtime endpoints read live_worker_stats
+5. package the CLI with pinned XMRig binaries per platform
 ```
 
 ## Suggested Repo Layout
@@ -585,10 +597,11 @@ cli/
   Cargo.toml
   src/
     main.rs
-    commands/
+    commands.rs
     xmrig.rs
     config.rs
     api.rs
+  tests/
 
 backend/
   Cargo.toml
@@ -623,17 +636,20 @@ docs/
 Recommended order:
 
 ```text
-1. Build local Docker Compose: Postgres + backend + XMRig Proxy.
-2. Configure XMRig Proxy upstream to HashVault.
-3. Implement Rust backend health/config and DB migrations.
-4. Implement /api/enroll and worker credential storage.
-5. Implement collector for /1/workers parsing and point deltas.
-6. Implement status, leaderboard, and realtime SSE.
-7. Implement Rust CLI enroll/start/stop/status/leaderboard.
+1. Build local Docker Compose: Postgres + backend + XMRig Proxy. DONE
+2. Configure XMRig Proxy upstream to HashVault. DONE
+3. Implement Rust backend health/config and DB migrations. DONE
+4. Implement /api/enroll and worker credential storage. DONE
+5. Implement collector for /1/workers parsing and point deltas. DONE
+6. Implement leaderboard. DONE
+7. Implement Rust CLI enroll/start/stop/status/leaderboard. DONE for MVP
 8. Run Alice/Bob local integration test through HashVault.
-9. Package ROFL container with backend + proxy + Postgres.
-10. Deploy to ROFL large instance.
-11. Add RandomX light-mode verification only after raw-share access is designed.
+9. Implement backend status endpoint over live_worker_stats.
+10. Implement realtime SSE over live_worker_stats.
+11. Package CLI with pinned XMRig binaries per platform.
+12. Package ROFL container with backend + proxy + Postgres.
+13. Deploy to ROFL large instance.
+14. Add RandomX light-mode verification only after raw-share access is designed.
 ```
 
 ## Open Risks

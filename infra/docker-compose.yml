@@ -24,8 +24,9 @@ services:
       DATABASE_URL: postgres://xpool:xpool@postgres:5432/xpool?sslmode=disable
       XMRIG_PROXY_API_URL: http://xmrig-proxy:8080
       XMRIG_PROXY_API_TOKEN: ${XMRIG_PROXY_ACCESS_TOKEN:-devtoken}
-      PROXY_HOST: localhost
+      PROXY_HOST: 127.0.0.1
       PROXY_PORT: "3333"
+      PROXY_WORKER_PASSWORD: ${XMRIG_PROXY_WORKER_PASSWORD:-xpool-dev}
       PAPER_SHARE_DIFFICULTY: ${PAPER_SHARE_DIFFICULTY:-10000}
       COLLECTOR_INTERVAL_MS: ${COLLECTOR_INTERVAL_MS:-2000}
     ports:
@@ -62,6 +63,8 @@ services:
       - "8080"
       - --http-access-token
       - ${XMRIG_PROXY_ACCESS_TOKEN:-devtoken}
+      - --access-password
+      - ${XMRIG_PROXY_WORKER_PASSWORD:-xpool-dev}
       - --verbose
     ports:
       - "127.0.0.1:3333:3333"
