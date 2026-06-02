@@ -428,11 +428,61 @@ Compose should expose:
 ```text
 3333 -> xmrig-proxy Stratum listener
 8081 -> backend API
-5432 -> postgres only for local dev
+15432 -> postgres only for local dev
 ```
 
 The proxy API should stay internal to compose in production, but can be exposed
 locally for debugging.
+
+Current local Docker ports:
+
+```text
+http://127.0.0.1:8081/health
+http://127.0.0.1:8081/api/enroll
+http://127.0.0.1:8081/api/leaderboard
+127.0.0.1:3333 for local XMRig workers
+127.0.0.1:15432 for local Postgres access
+http://127.0.0.1:8080/1/workers for local proxy debugging
+```
+
+Current local startup:
+
+```bash
+cp .env.example .env
+# Set HASHVAULT_WALLET_ADDRESS in .env.
+
+docker compose -f infra/docker-compose.yml build backend xmrig-proxy
+docker compose -f infra/docker-compose.yml up -d postgres backend xmrig-proxy
+
+docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql postgres:/tmp/0001_init.sql
+docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
+
+curl http://127.0.0.1:8081/health
+curl http://127.0.0.1:8081/api/leaderboard
+```
+
+Run DB-backed Rust tests against the local Postgres container:
+
+```bash
+XPOOL_TEST_DATABASE_URL='postgres://xpool:xpool@127.0.0.1:15432/xpool?sslmode=disable' \
+  cargo test -p xpool-backend --test enroll --test collector --test leaderboard
+```
+
+Run one host miner against the Dockerized proxy:
+
+```bash
+xmrig \
+  -o 127.0.0.1:3333 \
+  -u local-worker-1 \
+  -p test \
+  --rig-id local-worker-1 \
+  -t 1 \
+  --coin monero
+```
+
+Stop the host miner after the test. The proxy may retain a disconnected worker
+row with `connections = 0` and the latest counters. The collector must not treat
+row presence as proof of current mining.
 
 Team workflow:
 
@@ -472,13 +522,33 @@ one worker -> proxy -> HashVault:
   HashVault wallet API showed activeMiners: 1 and offline: false
 ```
 
+Already proven locally with Docker Compose:
+
+```text
+postgres container:
+  Postgres 16 started with persistent docker volume
+  migration 0001_init.sql applied cleanly
+
+backend container:
+  /health returned ok
+  /api/enroll created user + worker and returned one-time token
+  /api/leaderboard returned ranked point totals from Postgres
+
+xmrig-proxy container:
+  connected upstream to pool.hashvault.pro:443 over TLS
+  host XMRig worker connected through 127.0.0.1:3333
+  /1/workers exposed worker row, accepted shares, and total hashes
+  after miner stopped, worker row remained with connections = 0
+```
+
 Need to test next:
 
 ```text
 1. two workers -> proxy -> HashVault
 2. /1/workers shows separate local counters
 3. HashVault wallet API continues showing proxy wallet/account active
-4. Docker Compose reproduces the same topology
+4. background collector loop polls Dockerized proxy and writes DB deltas
+5. status and realtime endpoints read live_worker_stats
 ```
 
 ## Suggested Repo Layout

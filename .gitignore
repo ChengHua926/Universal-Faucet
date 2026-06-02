@@ -1,0 +1,10 @@
+target/
+.env
+.env.*
+!.env.example
+*.log
+
+# Local mining/wallet artifacts must not be committed.
+*.keys
+*.address.txt
+wallet.pass
