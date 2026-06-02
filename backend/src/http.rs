@@ -68,11 +68,7 @@ async fn enroll(
 
     let user_id = Uuid::new_v4();
     let worker_id = Uuid::new_v4();
-    let worker_name = format!(
-        "{}.{}",
-        slug_component(display_name),
-        slug_component(machine_label)
-    );
+    let worker_name = generate_worker_name();
     let worker_token = generate_worker_token();
     let token_hash = hash_worker_token(&worker_token)?;
 
@@ -160,6 +156,10 @@ fn generate_worker_token() -> String {
     format!("xp_{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
 
+fn generate_worker_name() -> String {
+    format!("w_{}", Uuid::new_v4().simple())
+}
+
 fn hash_worker_token(token: &str) -> Result<String, ApiError> {
     let salt_bytes = *Uuid::new_v4().as_bytes();
     let salt = SaltString::encode_b64(&salt_bytes).map_err(|_| ApiError::Internal)?;
@@ -167,31 +167,6 @@ fn hash_worker_token(token: &str) -> Result<String, ApiError> {
         .hash_password(token.as_bytes(), &salt)
         .map(|hash| hash.to_string())
         .map_err(|_| ApiError::Internal)
-}
-
-fn slug_component(value: &str) -> String {
-    let mut output = String::new();
-    let mut previous_was_separator = false;
-
-    for character in value.chars().flat_map(char::to_lowercase) {
-        if character.is_ascii_alphanumeric() {
-            output.push(character);
-            previous_was_separator = false;
-        } else if !previous_was_separator && !output.is_empty() {
-            output.push('-');
-            previous_was_separator = true;
-        }
-    }
-
-    if previous_was_separator {
-        output.pop();
-    }
-
-    if output.is_empty() {
-        "device".to_string()
-    } else {
-        output
-    }
 }
 
 #[derive(Debug, Deserialize)]

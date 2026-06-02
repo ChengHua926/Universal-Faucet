@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 use crate::proxy::workers::{parse_workers_response, ProxyWorker, ProxyWorkersError};
 
+pub const DEFAULT_PAPER_SHARE_DIFFICULTY: i64 = 10_000;
+
 #[derive(Debug, Clone)]
 pub struct ProxyApiConfig {
     api_url: String,
@@ -27,13 +29,13 @@ impl ProxyApiConfig {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CollectorConfig {
-    pub points_per_accepted_share: i64,
+    pub paper_share_difficulty: i64,
 }
 
 impl Default for CollectorConfig {
     fn default() -> Self {
         Self {
-            points_per_accepted_share: 1,
+            paper_share_difficulty: DEFAULT_PAPER_SHARE_DIFFICULTY,
         }
     }
 }
@@ -159,7 +161,7 @@ pub async fn record_proxy_workers(
 
         if accepted_share_delta > 0 {
             let points = accepted_share_delta
-                .checked_mul(config.points_per_accepted_share)
+                .checked_mul(config.paper_share_difficulty)
                 .ok_or(CollectorError::PointsOverflow)?;
 
             sqlx::query(

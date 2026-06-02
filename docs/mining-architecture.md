@@ -201,21 +201,28 @@ Recommended:
 
 ```text
 worker_id = UUID/ULID stored in DB
-worker_name = short backend-generated public worker key
+worker_name = unguessable backend-generated public worker key
 worker_token = secret returned once to CLI
+display_name = user-facing name, not used as mining identity
+machine_label = user-facing device label, not used as mining identity
 ```
 
 The CLI should pass the backend-generated worker key to XMRig as both `user`
 and `rig-id`:
 
 ```text
-user   = w_<short_id>_<slug>
-rig-id = w_<short_id>_<slug>
-pass   = worker_token or configured proxy password
+user   = w_<random_id>
+rig-id = w_<random_id>
+pass   = shared proxy password for MVP
 ```
 
 Empirical result from local XMRig Proxy v6.26.0: `/1/workers` attributes rows by
 `rig-id`, so `rig-id` is the collector's canonical worker lookup key.
+
+The worker token is currently for backend API calls. Stock XMRig Proxy does not
+perform DB-backed per-worker token validation. For the MVP, use a shared proxy
+password plus unguessable worker names. Do not use friendly names like
+`alice.macbook1` as production worker IDs.
 
 ## Proxy Stats API
 
@@ -304,7 +311,7 @@ Approved hackathon order:
 ```text
 Phase 1:
   Trust XMRig Proxy counters inside ROFL TEE.
-  Store accepted-share deltas as confirmed internal points.
+  Store paper-share deltas as confirmed internal points.
   Do not implement RandomX share verification yet.
 
 Phase 2:
@@ -330,17 +337,26 @@ Do not use sampling as a substitute for reasonable share difficulty. Tuning
 MVP:
 
 ```text
-points = accepted_share_delta
+paper_share_difficulty = XMRig Proxy --custom-diff
+points = accepted_share_delta * paper_share_difficulty
 ```
 
-Alternative:
+Current local default:
 
 ```text
-points = hash_delta / 1000
+paper_share_difficulty = 10000
+1 accepted share = 10000 internal points
 ```
 
-Use accepted-share deltas first because they are simple and visible. Store hash
-deltas too so the scoring model can change later.
+This is still an internal points system, not a payout engine. Paper-share
+points measure expected work better than raw accepted-share counts. Store hash
+deltas too so the scoring model can be audited or changed later.
+
+Alternative later:
+
+```text
+points = hash_delta
+```
 
 Recommended DB behavior:
 
@@ -351,6 +367,7 @@ collector poll every 1-2 seconds:
   read previous live_worker_stats
   accepted_delta = current_accepted - previous_accepted
   hash_delta = current_hashes - previous_hashes
+  points = accepted_delta * PAPER_SHARE_DIFFICULTY
   upsert live_worker_stats
   insert worker_stat_snapshots periodically
   insert point_ledger if accepted_delta > 0
@@ -544,7 +561,12 @@ xmrig-proxy container:
 live collector validation:
   enrolled backend worker docker.local1
   proxy had retained docker.local1 row with 8 accepted shares
-  collector credited docker with 8 leaderboard points
+  collector credited docker with 8 leaderboard shares
+
+paper-share validation:
+  enrolled backend worker w_32e47f31771c457f96a19e617421a327
+  proxy reported 4 accepted shares at custom diff 10000
+  backend leaderboard reported paperdemo with 40000 points and 4 accepted shares
 ```
 
 Need to test next:

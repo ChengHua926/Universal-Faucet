@@ -44,7 +44,22 @@ async fn enroll_creates_user_worker_and_returns_proxy_credentials() {
         .expect("body bytes");
     let json: Value = serde_json::from_slice(&body).expect("json body");
 
-    assert_eq!(json["worker_name"], "alice.macbook1");
+    let worker_name = json["worker_name"]
+        .as_str()
+        .expect("worker name")
+        .to_owned();
+    assert!(worker_name.starts_with("w_"));
+    assert!(worker_name.len() >= 18);
+    assert!(!worker_name.contains("alice"));
+    assert!(!worker_name.contains("macbook1"));
+    assert!(
+        worker_name
+            .chars()
+            .all(|character| character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || character == '_'),
+        "worker name should be CLI-safe random id: {worker_name}"
+    );
     assert_eq!(json["proxy_host"], "127.0.0.1");
     assert_eq!(json["proxy_port"], 3333);
 
@@ -74,7 +89,7 @@ async fn enroll_creates_user_worker_and_returns_proxy_credentials() {
 
     let token_hash: String = row.get("token_hash");
     assert_eq!(row.get::<String, _>("display_name"), "alice");
-    assert_eq!(row.get::<String, _>("worker_name"), "alice.macbook1");
+    assert_eq!(row.get::<String, _>("worker_name"), worker_name);
     assert_eq!(row.get::<String, _>("machine_label"), "macbook1");
     assert_ne!(token_hash, worker_token);
     assert!(token_hash.starts_with("$argon2"));
