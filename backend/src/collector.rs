@@ -1,8 +1,29 @@
+use std::time::Duration;
+
 use sqlx::{PgPool, Row};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::proxy::workers::ProxyWorker;
+use crate::proxy::workers::{parse_workers_response, ProxyWorker, ProxyWorkersError};
+
+#[derive(Debug, Clone)]
+pub struct ProxyApiConfig {
+    api_url: String,
+    access_token: String,
+}
+
+impl ProxyApiConfig {
+    pub fn new(api_url: impl Into<String>, access_token: impl Into<String>) -> Self {
+        Self {
+            api_url: api_url.into().trim_end_matches('/').to_string(),
+            access_token: access_token.into(),
+        }
+    }
+
+    fn workers_url(&self) -> String {
+        format!("{}/1/workers", self.api_url)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct CollectorConfig {
@@ -30,10 +51,57 @@ pub struct CollectorRunSummary {
 pub enum CollectorError {
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("proxy HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("proxy workers parse error: {0}")]
+    ProxyWorkers(#[from] ProxyWorkersError),
+    #[error("proxy API returned HTTP {status}")]
+    ProxyStatus { status: u16 },
     #[error("proxy counter {field} is too large for Postgres BIGINT: {value}")]
     CounterOverflow { field: &'static str, value: u64 },
     #[error("point calculation overflowed")]
     PointsOverflow,
+}
+
+pub async fn collect_proxy_workers_once(
+    pool: &PgPool,
+    proxy_api: &ProxyApiConfig,
+    config: CollectorConfig,
+) -> Result<CollectorRunSummary, CollectorError> {
+    let response = reqwest::Client::new()
+        .get(proxy_api.workers_url())
+        .bearer_auth(&proxy_api.access_token)
+        .send()
+        .await?;
+    let status = response.status();
+
+    if !status.is_success() {
+        return Err(CollectorError::ProxyStatus {
+            status: status.as_u16(),
+        });
+    }
+
+    let body = response.text().await?;
+    let workers = parse_workers_response(&body)?;
+
+    record_proxy_workers(pool, &workers, config).await
+}
+
+pub async fn run_collector_loop(
+    pool: PgPool,
+    proxy_api: ProxyApiConfig,
+    config: CollectorConfig,
+    interval: Duration,
+) {
+    let mut ticker = tokio::time::interval(interval);
+
+    loop {
+        ticker.tick().await;
+
+        if let Err(error) = collect_proxy_workers_once(&pool, &proxy_api, config).await {
+            eprintln!("collector poll failed: {error}");
+        }
+    }
 }
 
 pub async fn record_proxy_workers(
