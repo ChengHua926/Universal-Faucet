@@ -533,12 +533,18 @@ backend container:
   /health returned ok
   /api/enroll created user + worker and returned one-time token
   /api/leaderboard returned ranked point totals from Postgres
+  collector loop polled xmrig-proxy /1/workers and credited point deltas
 
 xmrig-proxy container:
   connected upstream to pool.hashvault.pro:443 over TLS
   host XMRig worker connected through 127.0.0.1:3333
   /1/workers exposed worker row, accepted shares, and total hashes
   after miner stopped, worker row remained with connections = 0
+
+live collector validation:
+  enrolled backend worker docker.local1
+  proxy had retained docker.local1 row with 8 accepted shares
+  collector credited docker with 8 leaderboard points
 ```
 
 Need to test next:
@@ -547,8 +553,7 @@ Need to test next:
 1. two workers -> proxy -> HashVault
 2. /1/workers shows separate local counters
 3. HashVault wallet API continues showing proxy wallet/account active
-4. background collector loop polls Dockerized proxy and writes DB deltas
-5. status and realtime endpoints read live_worker_stats
+4. status and realtime endpoints read live_worker_stats
 ```
 
 ## Suggested Repo Layout
