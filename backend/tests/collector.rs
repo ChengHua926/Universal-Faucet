@@ -25,10 +25,10 @@ async fn collector_records_snapshots_and_credits_only_positive_share_deltas() {
 
     assert_eq!(first_summary.observed_workers, 1);
     assert_eq!(first_summary.matched_workers, 1);
-    assert_eq!(first_summary.credited_points, 4);
+    assert_eq!(first_summary.credited_points, 40_000);
     assert_eq!(first_summary.credited_share_delta, 4);
     assert_eq!(first_summary.credited_hash_delta, 40_000);
-    assert_eq!(ledger_totals(&pool).await, (4, 4, 40_000, 1));
+    assert_eq!(ledger_totals(&pool).await, (40_000, 4, 40_000, 1));
     assert_eq!(live_totals(&pool, "alice.macbook1").await, (4, 40_000));
 
     let duplicate_summary = record_proxy_workers(&pool, &[first], CollectorConfig::default())
@@ -38,7 +38,7 @@ async fn collector_records_snapshots_and_credits_only_positive_share_deltas() {
     assert_eq!(duplicate_summary.credited_points, 0);
     assert_eq!(duplicate_summary.credited_share_delta, 0);
     assert_eq!(duplicate_summary.credited_hash_delta, 0);
-    assert_eq!(ledger_totals(&pool).await, (4, 4, 40_000, 1));
+    assert_eq!(ledger_totals(&pool).await, (40_000, 4, 40_000, 1));
 
     let next_summary = record_proxy_workers(
         &pool,
@@ -48,10 +48,10 @@ async fn collector_records_snapshots_and_credits_only_positive_share_deltas() {
     .await
     .expect("record next sample");
 
-    assert_eq!(next_summary.credited_points, 3);
+    assert_eq!(next_summary.credited_points, 30_000);
     assert_eq!(next_summary.credited_share_delta, 3);
     assert_eq!(next_summary.credited_hash_delta, 31_000);
-    assert_eq!(ledger_totals(&pool).await, (7, 7, 71_000, 2));
+    assert_eq!(ledger_totals(&pool).await, (70_000, 7, 71_000, 2));
     assert_eq!(live_totals(&pool, "alice.macbook1").await, (7, 71_000));
 
     let snapshot_count: i64 = sqlx::query_scalar("SELECT count(*) FROM worker_stat_snapshots")

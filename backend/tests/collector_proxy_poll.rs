@@ -31,8 +31,8 @@ async fn collect_once_fetches_proxy_workers_and_records_point_deltas() {
 
     assert_eq!(summary.observed_workers, 1);
     assert_eq!(summary.matched_workers, 1);
-    assert_eq!(summary.credited_points, 6);
-    assert_eq!(leaderboard_points(&pool).await, (6, 6));
+    assert_eq!(summary.credited_points, 60_000);
+    assert_eq!(leaderboard_points(&pool).await, (60_000, 6));
 }
 
 async fn spawn_proxy_api() -> String {

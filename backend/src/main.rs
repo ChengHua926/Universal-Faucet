@@ -2,7 +2,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use sqlx::postgres::PgPoolOptions;
-use xpool_backend::collector::{run_collector_loop, CollectorConfig, ProxyApiConfig};
+use xpool_backend::collector::{
+    run_collector_loop, CollectorConfig, ProxyApiConfig, DEFAULT_PAPER_SHARE_DIFFICULTY,
+};
 use xpool_backend::http::{app_with_state, AppState};
 
 #[tokio::main]
@@ -26,10 +28,11 @@ async fn main() {
     if let Ok(proxy_api_url) = std::env::var("XMRIG_PROXY_API_URL") {
         let proxy_api_token =
             std::env::var("XMRIG_PROXY_API_TOKEN").unwrap_or_else(|_| "devtoken".to_string());
-        let points_per_accepted_share = std::env::var("POINTS_PER_ACCEPTED_SHARE")
+        let paper_share_difficulty = std::env::var("PAPER_SHARE_DIFFICULTY")
+            .or_else(|_| std::env::var("POINTS_PER_ACCEPTED_SHARE"))
             .ok()
             .and_then(|value| value.parse().ok())
-            .unwrap_or(1);
+            .unwrap_or(DEFAULT_PAPER_SHARE_DIFFICULTY);
         let interval_ms = std::env::var("COLLECTOR_INTERVAL_MS")
             .ok()
             .and_then(|value| value.parse().ok())
@@ -39,7 +42,7 @@ async fn main() {
             pool.clone(),
             ProxyApiConfig::new(proxy_api_url, proxy_api_token),
             CollectorConfig {
-                points_per_accepted_share,
+                paper_share_difficulty,
             },
             Duration::from_millis(interval_ms),
         ));
