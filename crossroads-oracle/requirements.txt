@@ -1,0 +1,9 @@
+web3>=6,<8
+python-dotenv>=1,<2
+httpx>=0.27,<1
+cbor2>=5,<6
+# Model B: decode the appd rofl1... app id to bytes21 for the signer commitment.
+bech32>=1.2,<2
+# eth-abi / eth-keys / eth-account come transitively via web3; pinned loosely
+# here so the Model B crypto modules resolve in a clean build.
+eth-abi>=5,<6

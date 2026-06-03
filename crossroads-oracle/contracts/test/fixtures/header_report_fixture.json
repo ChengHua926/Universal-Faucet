@@ -1,0 +1,54 @@
+{
+  "sapphireChainId": 23295,
+  "oracleContract": "0xD22bcCbb387464dd99c573aBf583b00F55626552",
+  "report": {
+    "sourceChainId": 11155111,
+    "blockNumber": 10981587,
+    "blockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+    "rlpHeaderHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+    "requiredConfirmations": 12,
+    "observedConfirmations": 14,
+    "quorumTip": 10981601,
+    "requireFinalized": false,
+    "finalizedBlockNumber": 0,
+    "rpcVoteDigest": "0xcbcfaa82ec25db8978a639c3dfb60c41547738dcc58438023e594992ef218013",
+    "expiresAt": 4102444800,
+    "signerEpoch": 1,
+    "rlpHeader": "0xf90287a0f97d4d7af8d915bfb15f5906a1483683c3788663cc2041db1bb61c5bb3354b47a01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347949a6034c84cd431409ac1a35278c7da36ffda53e5a09bea5f97f9f072881ea351b29fdb7be0634314fdced17e1d6229b00b3daddef9a06c6bb32daac3cbc1c3a2f9a3120167143ce13ee0541692f7656dc68453f1460ca0899b9a55039ae23598c6660775360c4610c1ef5c5ffdc280ef6f0f7b8fc7f713b90100752a41647794db4148fd8a7ae9c12574dcb4f84957a71f568310a9dfd65bbd42dbfb0924c2b8fbf7f26a4b97547d47f522857bc25db5ec3d8d02921e78ac3fb5762a07f89d3e7f28cd29459f301c0cae0449a6eeb5dd9b0e7855df2687b636f85fd711f6fb18c4948b0169b12ef26c644e8a5bc2d67f36709a4cd931850c2bc1b640832a07fcd7f869563ff85b3ba8498bacaac96eb9e90ce24db87737b9540ce6a27ed1a9c42548cd7b69a849b41d9e368427c127ef97bce4d66bbead6d5df4dee40f1ad493aa5a44f31f22e94366a28a975809f35baef39c15165bb798fb2e89382d596abd35adc8eab7992d61c068e272fa9cc8caa86166d4a236545711308083a790d384039387008401a67880846a2028e099d883011103846765746888676f312e32362e33856c696e7578a0f559e5202c76922fdb85ce848c80e79faaa3c8e5c4f672fb5475a5698b4cc4f688000000000000000085012dac4705a0d613061efb1f77c8deca45a13e7a974781ba01ed3da67e8682e0e955a8f1624883200000840da1af16a09cdaa729f2e8c51fa2ff50ba9cd52849f98ee445f661253a3d634cdec6fe92f3a0e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "reportDigest": "0xddacfe740ff758142f3ad7ffe3cc352c714a1411a7007399b9eddab985f5ca55",
+  "signature": "0x614b259edbeb087e3a056494f859c5dbd448e1b95fcd04a7b8c1e2f92ff96f292d924570130ec46e80584d6763b2fd03dc5de022efab84908bd3bcf2908086d41c",
+  "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "votes": [
+    {
+      "sourceIndex": 0,
+      "url": "https://ethereum-sepolia-rpc.publicnode.com",
+      "tip": 10981601,
+      "finalizedBlockNumber": 10981587,
+      "blockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "recomputedBlockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "ok": true,
+      "error": null
+    },
+    {
+      "sourceIndex": 1,
+      "url": "https://sepolia.drpc.org",
+      "tip": 10981601,
+      "finalizedBlockNumber": 10981587,
+      "blockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "recomputedBlockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "ok": true,
+      "error": null
+    },
+    {
+      "sourceIndex": 2,
+      "url": "https://1rpc.io/sepolia",
+      "tip": 10981599,
+      "finalizedBlockNumber": 10981587,
+      "blockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "recomputedBlockHash": "0xe2f5b0b60c293c3a8fc94e669e1f6b08b58be84defc4b78295b58c55cc4a671d",
+      "ok": true,
+      "error": null
+    }
+  ]
+}

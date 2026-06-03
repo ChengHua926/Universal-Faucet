@@ -1,0 +1,9 @@
+# Keep the image small and NEVER bake secrets or local junk into it.
+.env
+.venv/
+contracts/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+*.orc
