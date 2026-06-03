@@ -1,9 +1,9 @@
-name: crossroads-header-oracle
+name: crossroads-oracle
 version: 0.1.0
 tee: tdx
 kind: container
 resources:
-  memory: 512
+  memory: 1024
   cpus: 1
   storage:
     kind: disk-persistent
@@ -19,14 +19,14 @@ artifacts:
 deployments:
   testnet:
     default: true
-    app_id: rofl1qphzf28av4g7xhnyddscxfxugsn292wrcqmh7dlv
+    app_id: rofl1qq3nncus2mcjalpw3u28d2r3ugj4t0zwfypqrlha
     network: testnet
     paratime: sapphire
-    admin: my_account
-    oci_repository: rofl.sh/e30e30f9-7ddc-4251-8e03-db6f5408bc88:1780431632
+    admin: myaccount
+    oci_repository: rofl.sh/b20fd051-cecb-4755-9053-09af253709c9:1780440665
     trust_root:
-      height: 32366369
-      hash: aaff95eae01ac0c53d90ab777ea7b6719731c7f513931536191d1eb429142f5e
+      height: 32368126
+      hash: 55b91300e0c279eb68b5fa483a09ecd8a088d01f3a0753df175716655f30cf9b
     policy:
       quotes:
         pcs:
@@ -34,8 +34,8 @@ deployments:
           min_tcb_evaluation_data_number: 18
           tdx: {}
       enclaves:
-        - id: FPZHhKQGDOdibxqe/mlF5vUeLUcLWVX3KCeBI7x3f1kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
-        - id: aJ9KYb+6iKoLBem+DiwmtBqABFLLASUfPgD103XHhoIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: IfyyLBm+Mg4Rg459QuwtocjMNIWKnUewekuwzMWKO2AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: 2BecSNt45cgH7ih/KekcG2qgLDf86IpPxQTjfjKpuBsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
       endorsements:
         - any: {}
       fees: endorsing_node
@@ -44,6 +44,6 @@ deployments:
       default:
         provider: oasis1qp2ens0hsp7gh23wajxa4hpetkdek3swyyulyrmz
         offer: playground_short
-        id: "0000000000000617"
+        id: "0000000000000619"
 tooling:
-  version: 0.18.6
+  version: 0.19.0

@@ -1,6 +1,6 @@
 import pytest
 
-from app.contract_client import (
+from contract_client import (
     ZERO_ADDRESS,
     build_header_signer_commitment,
     plan_header_signer_registration,

@@ -1,12 +1,13 @@
 {
-  "name": "crossroads-header-oracle-contracts",
+  "name": "crossroads-oracle-contracts",
   "version": "0.1.0",
-  "private": true,
-  "description": "Sapphire contract for Crossroads TEE header signer registration",
+  "description": "Sapphire contracts for the Crossroads block-hash oracle",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:testnet": "hardhat run scripts/deploy.js --network sapphire-testnet"
+    "deploy:testnet": "hardhat run scripts/deploy.js --network sapphire-testnet",
+    "deploy:evm-stack": "hardhat run scripts/deploy-evm-stack.js --network sapphire-testnet",
+    "deploy:header-oracle": "hardhat run scripts/deploy-header-oracle.js --network sapphire-testnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
@@ -19,6 +20,7 @@
   },
   "dependencies": {
     "@oasisprotocol/sapphire-contracts": "^0.2.16",
-    "bech32": "^2.0.0"
+    "@openzeppelin/contracts": "^5.4.0",
+    "solidity-rlp": "^2.0.8"
   }
 }

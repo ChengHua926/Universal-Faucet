@@ -1,10 +1,9 @@
 from eth_account import Account
 from eth_utils import keccak
 
-from app.report_cache import ReportCache
-from app.server import HeaderReportService, HeaderReportServiceConfig
-from app.source_rpc import ConfirmedHeaderResult, RpcVote
-
+from report_cache import ReportCache
+from server import HeaderReportService, HeaderReportServiceConfig
+from source_rpc import ConfirmedHeaderResult, RpcVote
 
 PRIVATE_KEY = "0x" + "11" * 32
 SIGNER = Account.from_key(PRIVATE_KEY).address
@@ -19,6 +18,20 @@ def test_health_does_not_call_rpc_or_contract():
     health = service.health()
 
     assert health["ok"] is True
+    assert source.calls == 0
+    assert contract.calls == 0
+
+
+def test_index_lists_endpoints_without_calling_rpc_or_contract():
+    source = _FakeSource()
+    contract = _FakeContract(SIGNER, 1)
+    service = _service(source, contract)
+
+    index = service.index()
+
+    assert index["ok"] is True
+    assert index["signer"] == SIGNER
+    assert "GET /v1/header/latest-confirmed" in index["endpoints"]
     assert source.calls == 0
     assert contract.calls == 0
 

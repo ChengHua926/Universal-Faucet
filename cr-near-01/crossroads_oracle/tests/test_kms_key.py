@@ -1,7 +1,6 @@
 from eth_account import Account
 
-from app.kms_key import fetch_or_derive_secp256k1_key
-
+from kms_key import fetch_or_derive_secp256k1_key
 
 PRIVATE_KEY = "0x" + "11" * 32
 

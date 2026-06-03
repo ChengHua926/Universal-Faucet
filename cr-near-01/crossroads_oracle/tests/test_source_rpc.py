@@ -1,15 +1,14 @@
 import pytest
 from eth_utils import keccak
 
-from app.evm_header import build_rlp_header
-from app.source_rpc import (
+from evm_header import build_rlp_header
+from source_rpc import (
     BlockTooNewError,
     HeaderQuorumError,
     SourceRpcClient,
     SourceRpcConfig,
     SourceUnavailableError,
 )
-
 
 URLS = ("rpc0", "rpc1", "rpc2")
 CHAIN_ID = 11155111
@@ -67,8 +66,7 @@ def test_all_different_hashes_fail_quorum():
 def test_chain_id_mismatch_is_rejected_at_startup():
     rpc = _FakeRpc(tips=(200, 200, 200), chain_ids=(CHAIN_ID, CHAIN_ID, 1))
     client = SourceRpcClient(
-        SourceRpcConfig(URLS, quorum=3, confirmations=12, chain_id=CHAIN_ID),
-        rpc.call,
+        SourceRpcConfig(URLS, quorum=3, confirmations=12, chain_id=CHAIN_ID), rpc.call
     )
 
     with pytest.raises(SourceUnavailableError):
@@ -77,19 +75,9 @@ def test_chain_id_mismatch_is_rejected_at_startup():
 
 def test_finalized_quorum_is_enforced():
     block = _block(187, "11")
-    rpc = _FakeRpc(
-        tips=(220, 220, 220),
-        finalized=(190, 188, 120),
-        blocks=(block, block, block),
-    )
+    rpc = _FakeRpc(tips=(220, 220, 220), finalized=(190, 188, 120), blocks=(block, block, block))
     client = SourceRpcClient(
-        SourceRpcConfig(
-            URLS,
-            quorum=2,
-            confirmations=12,
-            chain_id=CHAIN_ID,
-            require_finalized=True,
-        ),
+        SourceRpcConfig(URLS, quorum=2, confirmations=12, chain_id=CHAIN_ID, require_finalized=True),
         rpc.call,
     )
     client.validate_sources()
@@ -101,13 +89,7 @@ def test_finalized_quorum_is_enforced():
 
 
 class _FakeRpc:
-    def __init__(
-        self,
-        tips=(200, 200, 200),
-        finalized=(0, 0, 0),
-        blocks=None,
-        chain_ids=None,
-    ):
+    def __init__(self, tips=(200, 200, 200), finalized=(0, 0, 0), blocks=None, chain_ids=None):
         self.tips = dict(zip(URLS, tips))
         self.finalized = dict(zip(URLS, finalized))
         self.blocks = dict(zip(URLS, blocks or (_block(187, "11"),) * 3))
@@ -127,8 +109,7 @@ class _FakeRpc:
 
 def _client(rpc):
     return SourceRpcClient(
-        SourceRpcConfig(URLS, quorum=2, confirmations=12, chain_id=CHAIN_ID),
-        rpc.call,
+        SourceRpcConfig(URLS, quorum=2, confirmations=12, chain_id=CHAIN_ID), rpc.call
     )
 
 
