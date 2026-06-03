@@ -1,26 +1,43 @@
-# Mining Pool Architecture Handoff
+# Universal Faucet Mining Architecture Handoff
 
 Read this file first. It captures the current architecture decisions for the
-hackathon prototype and should be enough context for a coding agent to start.
+mining/CLI component and should be enough context for a coding agent to start.
 
 ## Product Goal
 
-Build `xpool`: a CLI-driven Monero mining points pool.
+Build the mining component for a universal proof-of-work faucet.
 
-Users run:
+Users install one CLI, likely named `drip`, and request a destination
+chain/token/address:
 
 ```text
-xpool enroll
-xpool start --threads 2
-xpool pause
-xpool resume
-xpool status
-xpool leaderboard
+drip base-sepolia eth 0x1111111111111111111111111111111111111111
+drip status
+drip stop
 ```
 
-The CLI starts bundled XMRig on the user's machine. The user never manually
-runs XMRig. The app does not need to perform real XMR payouts to users. It
-credits internal points from real share/hash data.
+The CLI starts managed/bundled XMRig on the user's machine. The user never
+manually installs or runs XMRig. Accepted RandomX mining work becomes internal
+PaperShare credit. A future contract/Crossroads adapter settles that credit into
+the user's requested chain/token/address.
+
+Current repository scope:
+
+```text
+owned here:
+  CLI
+  managed XMRig process lifecycle
+  Stratum Gate
+  XMRig Proxy integration
+  upstream RandomX/Monero pool integration
+  backend accounting
+  Postgres ledger
+  placeholder settlement boundary
+
+owned by other teammates:
+  PaperShare/mining-pool-token smart contract
+  Crossroads swap/bridge/payout layer
+```
 
 ## Current Architecture Decision
 
@@ -29,19 +46,22 @@ assembly.
 
 ```text
 User laptop
-└── xpool CLI
-    ├── enrolls with ROFL API
+└── drip/xpool CLI
+    ├── enrolls with backend API
+    ├── creates payout intent: target chain/token/address
     ├── stores worker credentials locally
-    └── starts bundled XMRig
+    └── starts managed XMRig
         └── connects to ROFL Stratum gate :3333
 
 ROFL TEE
 ├── Rust API/backend
 │   ├── public API ingress
 │   ├── enrolls users and workers
+│   ├── stores payout intents
 │   ├── serves status and leaderboard
 │   ├── exposes realtime progress
-│   └── runs collector and accounting tasks
+│   ├── runs collector and accounting tasks
+│   └── queues placeholder settlement requests
 │
 ├── xpool-gate
 │   ├── accepts user miners on :3333
@@ -67,7 +87,16 @@ ROFL TEE
     ├── mining_sessions
     ├── worker_stat_snapshots
     ├── live_worker_stats
-    └── point_ledger
+    ├── point_ledger
+    ├── payout_intents
+    ├── paper_share_credits
+    └── settlement_requests
+
+External teammate systems
+└── Crossroads / PaperShare contracts
+    ├── consume settlement request intent later
+    ├── mint/credit/redeem mining-pool-token value
+    └── route value to requested chain/token/address
 
 External upstream
 └── HashVault Monero pool
@@ -121,7 +150,7 @@ User XMRig
 Backend collector
   -> reads gate per-worker counters
   -> computes deltas
-  -> writes internal points
+  -> writes PaperShare credit and placeholder settlement requests
 ```
 
 Users are not racing to finish a deterministic task. Mining is a probabilistic
@@ -129,8 +158,10 @@ hash search. Every hash is a lottery ticket. Low-difficulty shares prove work to
 the proxy; rare high-quality shares count upstream to the pool; even rarer
 network-valid blocks are handled by the pool.
 
-The app is not a pool payout engine. It is an internal points system over real
-worker share data.
+This component is not the Crossroads swap/bridge implementation. It is the
+mining and accounting source of truth. Its job is to convert real worker share
+data into auditable PaperShare credit and settlement requests that another
+component can execute on chain.
 
 ## HashVault Integration
 
@@ -337,30 +368,32 @@ invalid sample: freeze worker, verify recent pending buffer, reverse bad points
 Do not use sampling as a substitute for reasonable share difficulty. Tuning
 `--custom-diff` is the main way to control share volume.
 
-## Points Model
+## PaperShare Accounting Model
 
-MVP:
+Current scoring:
 
 ```text
 paper_share_difficulty = XMRig Proxy --custom-diff
-points = accepted_share_delta * paper_share_difficulty
+paper_share_amount = accepted_share_delta * paper_share_difficulty
 ```
 
 Current local default:
 
 ```text
 paper_share_difficulty = 10000
-1 accepted share = 10000 internal points
+1 accepted share = 10000 PaperShare units
 ```
 
-This is still an internal points system, not a payout engine. Paper-share
-points measure expected work better than raw accepted-share counts. Store hash
-deltas too so the scoring model can be audited or changed later.
+`point_ledger` remains for leaderboard compatibility. Production-facing
+accounting should treat those values as PaperShare credit, not arbitrary game
+points. PaperShare units measure expected work better than raw accepted-share
+counts. Store hash deltas too so the scoring model can be audited or changed
+later.
 
 Alternative later:
 
 ```text
-points = hash_delta
+paper_share_amount = hash_delta
 ```
 
 Recommended DB behavior:
@@ -372,23 +405,73 @@ collector poll every 1-2 seconds:
   read previous live_worker_stats
   accepted_delta = current_accepted - previous_accepted
   hash_delta = current_hashes - previous_hashes
-  points = accepted_delta * PAPER_SHARE_DIFFICULTY
+  paper_share_amount = accepted_delta * PAPER_SHARE_DIFFICULTY
   upsert live_worker_stats
   insert worker_stat_snapshots periodically
   insert point_ledger if accepted_delta > 0
+  if active payout_intent exists:
+    insert paper_share_credits
+    insert settlement_requests with adapter = placeholder
 ```
 
 For realtime progress:
 
 ```text
 live_worker_stats = current source for status UI
-point_ledger = append-only source for leaderboard truth
+point_ledger = append-only source for leaderboard compatibility
+paper_share_credits = contract-facing credit source
+settlement_requests = placeholder handoff queue for contract/Crossroads adapter
 SSE/WebSocket = push latest live state to connected clients
 ```
 
 For 100 workers, Postgres is fine. 100 miners connect to XMRig Proxy, not
 Postgres. The Rust backend should use a small Postgres pool, e.g. 10-20
 connections.
+
+## Payout Intent And Settlement Boundary
+
+The current backend owns the placeholder boundary only:
+
+```text
+POST /api/payout-intents
+  worker_name
+  worker_token
+  target_chain
+  target_token
+  recipient_address
+  receive_pool_token=false
+```
+
+The endpoint authenticates `worker_name + worker_token`, then stores an active
+payout intent. When the collector later credits accepted work for that worker,
+it writes:
+
+```text
+point_ledger
+  old leaderboard-compatible ledger
+
+paper_share_credits
+  explicit internal mining-pool-token/PaperShare credit
+
+settlement_requests
+  placeholder queue item with:
+    amount
+    target_chain
+    target_token
+    recipient_address
+    idempotency_key
+    adapter = placeholder
+    status = pending
+```
+
+Future contract/Crossroads integration should replace the placeholder adapter,
+not the mining/gate/accounting pipeline. Expected status lifecycle:
+
+```text
+pending -> submitted -> confirmed
+pending -> failed
+submitted -> replaced
+```
 
 ## ROFL TEE Sizing
 
@@ -461,6 +544,7 @@ Current local Docker ports:
 ```text
 http://127.0.0.1:8081/health
 http://127.0.0.1:8081/api/enroll
+http://127.0.0.1:8081/api/payout-intents
 http://127.0.0.1:8081/api/leaderboard
 127.0.0.1:3333 for local XMRig workers
 127.0.0.1:15432 for local Postgres access
@@ -479,6 +563,8 @@ docker compose -f infra/docker-compose.yml up -d postgres backend xmrig-proxy
 
 docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql postgres:/tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
+docker compose -f infra/docker-compose.yml cp backend/migrations/0002_payout_settlement.sql postgres:/tmp/0002_payout_settlement.sql
+docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0002_payout_settlement.sql
 
 curl http://127.0.0.1:8081/health
 curl http://127.0.0.1:8081/api/leaderboard
@@ -590,11 +676,13 @@ CLI-managed mining validation:
 Need to test next:
 
 ```text
-1. two workers -> gate -> proxy -> HashVault
-2. /1/workers shows separate local counters
-3. HashVault wallet API continues showing proxy wallet/account active
-4. status and realtime endpoints read live_worker_stats
-5. package the CLI with pinned XMRig binaries per platform
+1. create payout_intent through CLI-facing API
+2. accepted mining work inserts paper_share_credits and settlement_requests
+3. two workers -> gate -> proxy -> HashVault
+4. /1/workers shows separate local counters
+5. HashVault wallet API continues showing proxy wallet/account active
+6. status and realtime endpoints read live_worker_stats
+7. package the CLI with pinned XMRig binaries per platform
 ```
 
 ## Suggested Repo Layout
@@ -650,13 +738,17 @@ Recommended order:
 5. Implement collector for /1/workers parsing and point deltas. DONE
 6. Implement leaderboard. DONE
 7. Implement Rust CLI enroll/start/stop/status/leaderboard. DONE for MVP
-8. Run Alice/Bob local integration test through HashVault.
-9. Implement backend status endpoint over live_worker_stats.
-10. Implement realtime SSE over live_worker_stats.
-11. Package CLI with pinned XMRig binaries per platform.
-12. Package ROFL container with backend + proxy + Postgres.
-13. Deploy to ROFL large instance.
-14. Add RandomX light-mode verification only after raw-share access is designed.
+8. Add payout_intents + PaperShare credit + placeholder settlements. DONE
+9. Productize CLI from xpool mining UX toward drip faucet UX.
+10. Package CLI with pinned XMRig binaries per platform.
+11. Run end-to-end faucet-component test:
+    CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
+12. Run Alice/Bob local integration test through HashVault.
+13. Implement backend status endpoint over live_worker_stats.
+14. Implement realtime SSE over live_worker_stats.
+15. Package ROFL container with backend + proxy + Postgres.
+16. Deploy to ROFL large instance.
+17. Add RandomX light-mode verification only after raw-share access is designed.
 ```
 
 ## Open Risks
@@ -668,5 +760,9 @@ ROFL raw TCP passthrough for Stratum must be verified.
 Postgres-in-TEE persistence/backup story must be decided.
 Raw share capture is not available from /1/workers.
 RandomX light-mode verifier requires raw shares, not just aggregate counters.
-Proxy-level worker authentication may be weak; worker IDs should be unguessable.
+CLI still depends on an external XMRig binary path; production drip must bundle
+or manage pinned XMRig binaries.
+Official prebuilt XMRig keeps the default donation behavior; disabling it
+requires source build and GPL-compliant distribution.
+Contract/Crossroads settlement is a placeholder adapter in this repo.
 ```

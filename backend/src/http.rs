@@ -1,5 +1,5 @@
 use argon2::{
-    password_hash::{PasswordHasher, SaltString},
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
 use axum::{
@@ -17,6 +17,7 @@ pub fn app() -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/enroll", post(enroll))
+        .route("/api/payout-intents", post(create_payout_intent))
         .route("/api/leaderboard", get(leaderboard))
 }
 
@@ -143,6 +144,80 @@ async fn leaderboard(
     ))
 }
 
+async fn create_payout_intent(
+    Extension(state): Extension<AppState>,
+    Json(request): Json<CreatePayoutIntentRequest>,
+) -> Result<(StatusCode, Json<CreatePayoutIntentResponse>), ApiError> {
+    let worker_name = required_trimmed("worker_name", &request.worker_name)?;
+    let worker_token = required_trimmed("worker_token", &request.worker_token)?;
+    let target_chain =
+        required_trimmed("target_chain", &request.target_chain)?.to_ascii_lowercase();
+    let target_token =
+        required_trimmed("target_token", &request.target_token)?.to_ascii_lowercase();
+    let recipient_address = required_trimmed("recipient_address", &request.recipient_address)?;
+    let receive_pool_token = request.receive_pool_token.unwrap_or(false);
+
+    let Some(worker) = sqlx::query(
+        r#"
+        SELECT id, user_id, token_hash
+        FROM workers
+        WHERE worker_name = $1
+        "#,
+    )
+    .bind(worker_name)
+    .fetch_optional(&state.pool)
+    .await?
+    else {
+        return Err(ApiError::Unauthorized);
+    };
+
+    let worker_id: Uuid = worker.get("id");
+    let user_id: Uuid = worker.get("user_id");
+    let token_hash: String = worker.get("token_hash");
+
+    verify_worker_token(worker_token, &token_hash)?;
+
+    let payout_intent_id = Uuid::new_v4();
+
+    sqlx::query(
+        r#"
+        INSERT INTO payout_intents (
+          id,
+          user_id,
+          worker_id,
+          target_chain,
+          target_token,
+          recipient_address,
+          receive_pool_token
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        "#,
+    )
+    .bind(payout_intent_id)
+    .bind(user_id)
+    .bind(worker_id)
+    .bind(&target_chain)
+    .bind(&target_token)
+    .bind(recipient_address)
+    .bind(receive_pool_token)
+    .execute(&state.pool)
+    .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CreatePayoutIntentResponse {
+            payout_intent_id,
+            user_id,
+            worker_id,
+            target_chain,
+            target_token,
+            recipient_address: recipient_address.to_string(),
+            receive_pool_token,
+            status: "active",
+        }),
+    ))
+}
+
 fn required_trimmed<'a>(field_name: &'static str, value: &'a str) -> Result<&'a str, ApiError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -169,6 +244,14 @@ fn hash_worker_token(token: &str) -> Result<String, ApiError> {
         .map_err(|_| ApiError::Internal)
 }
 
+fn verify_worker_token(token: &str, token_hash: &str) -> Result<(), ApiError> {
+    let parsed_hash = PasswordHash::new(token_hash).map_err(|_| ApiError::Internal)?;
+
+    Argon2::default()
+        .verify_password(token.as_bytes(), &parsed_hash)
+        .map_err(|_| ApiError::Unauthorized)
+}
+
 #[derive(Debug, Deserialize)]
 struct EnrollRequest {
     display_name: String,
@@ -193,6 +276,28 @@ struct LeaderboardEntry {
     accepted_shares: i64,
 }
 
+#[derive(Debug, Deserialize)]
+struct CreatePayoutIntentRequest {
+    worker_name: String,
+    worker_token: String,
+    target_chain: String,
+    target_token: String,
+    recipient_address: String,
+    receive_pool_token: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct CreatePayoutIntentResponse {
+    payout_intent_id: Uuid,
+    user_id: Uuid,
+    worker_id: Uuid,
+    target_chain: String,
+    target_token: String,
+    recipient_address: String,
+    receive_pool_token: bool,
+    status: &'static str,
+}
+
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     error: String,
@@ -202,6 +307,8 @@ struct ErrorResponse {
 enum ApiError {
     #[error("{0}")]
     BadRequest(String),
+    #[error("unauthorized")]
+    Unauthorized,
     #[error("worker already enrolled")]
     Conflict,
     #[error("internal server error")]
@@ -230,6 +337,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Conflict => StatusCode::CONFLICT,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };

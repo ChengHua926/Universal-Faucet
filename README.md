@@ -1,15 +1,33 @@
-# XPool Mining Points Prototype
+# Universal Faucet Mining Component
 
-CLI-driven Monero mining points pool prototype.
+Universal PoW faucet mining/CLI component.
+
+The product is not a user-facing Monero pool. Users install our CLI, likely
+`drip`, ask for a destination chain/token/address, and the CLI manages local
+RandomX mining. Mining work becomes internal PaperShare credit that a future
+contract/Crossroads integration can settle into the requested asset.
 
 Current mode:
 
 ```text
-user XMRig -> xpool-gate -> internal XMRig Proxy -> HashVault Monero pool
-backend collector -> xpool-gate stats -> Postgres point ledger
+user CLI -> managed XMRig -> xpool-gate -> internal XMRig Proxy -> HashVault
+backend collector -> xpool-gate stats -> Postgres PaperShare ledger
+placeholder settlement queue -> future contract/Crossroads adapter
 ```
 
-No user payouts. Points are internal paper-share credits.
+Crossroads and smart contracts are owned by other teammates. This repo owns the
+mining pool, CLI, gate, backend accounting, and placeholder integration
+boundary.
+
+Intended faucet-facing UX:
+
+```bash
+drip base-sepolia eth 0x1111111111111111111111111111111111111111
+drip status
+drip stop
+```
+
+Current dev CLI is still named `xpool`.
 
 ## CLI
 
@@ -27,6 +45,20 @@ Enroll:
 
 ```bash
 cargo run -p xpool-cli -- enroll --name alice --machine-label local1
+```
+
+Create a payout intent directly against the backend:
+
+```bash
+curl -fsS http://127.0.0.1:8081/api/payout-intents \
+  -H 'content-type: application/json' \
+  -d '{
+    "worker_name": "<worker_name from enroll>",
+    "worker_token": "<worker_token from enroll>",
+    "target_chain": "base-sepolia",
+    "target_token": "eth",
+    "recipient_address": "0x1111111111111111111111111111111111111111"
+  }' | jq .
 ```
 
 Start mining:
@@ -48,6 +80,14 @@ Read points:
 ```bash
 cargo run -p xpool-cli -- leaderboard
 curl -fsS http://127.0.0.1:8081/api/leaderboard | jq .
+```
+
+Inspect placeholder settlement handoff rows:
+
+```bash
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -U xpool -d xpool \
+  -c 'SELECT amount, target_chain, target_token, recipient_address, status, adapter FROM settlement_requests ORDER BY created_at DESC LIMIT 10;'
 ```
 
 Stop mining:
@@ -77,6 +117,10 @@ cpu.rx = one -1 affinity entry per requested mining thread
 The gate validates `worker_token`, then rewrites `pass` to the internal
 XMRig Proxy password before forwarding.
 
+Current limitation: the CLI can point at an XMRig binary through `PATH`,
+`--xmrig-path`, or `XPOOL_XMRIG_PATH`. Production `drip` must bundle or manage
+pinned per-platform XMRig binaries so users install only our CLI.
+
 ## Backend And Proxy
 
 Create local env:
@@ -100,6 +144,8 @@ Apply schema:
 ```bash
 docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql postgres:/tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
+docker compose -f infra/docker-compose.yml cp backend/migrations/0002_payout_settlement.sql postgres:/tmp/0002_payout_settlement.sql
+docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0002_payout_settlement.sql
 ```
 
 Verify services:
@@ -109,6 +155,25 @@ docker compose -f infra/docker-compose.yml ps
 curl -fsS http://127.0.0.1:8081/health | jq .
 curl -fsS http://127.0.0.1:8081/api/leaderboard | jq .
 curl -fsS -H "Authorization: Bearer devtoken" http://127.0.0.1:8082/1/workers | jq .
+```
+
+API surface owned by this component:
+
+```text
+GET  /health
+POST /api/enroll
+POST /api/payout-intents
+GET  /api/leaderboard
+```
+
+`/api/payout-intents` is the placeholder Crossroads/contract boundary. It stores
+the user-requested target chain, target token, and recipient address. When the
+collector credits mined work for that worker, the backend writes:
+
+```text
+point_ledger          compatibility leaderboard ledger
+paper_share_credits   explicit internal mining-pool-token credit
+settlement_requests   pending placeholder for future contract signer/Crossroads
 ```
 
 Ports:
@@ -152,15 +217,17 @@ Runtime topology:
 
 ```text
 host laptop
-+-- xpool CLI
++-- drip/xpool CLI
     |-- POST /api/enroll
+    |-- POST /api/payout-intents
     |-- writes ~/.xpool/*
-    +-- starts XMRig
+    +-- starts managed XMRig
         +-- stratum tcp :3333
 
 local docker / ROFL TEE
 |-- backend :8081
 |   |-- /api/enroll
+|   |-- /api/payout-intents
 |   |-- /api/leaderboard
 |   +-- collector loop
 |-- xpool-gate :3333
@@ -176,7 +243,10 @@ local docker / ROFL TEE
     |-- users
     |-- workers
     |-- live_worker_stats
-    +-- point_ledger
+    |-- point_ledger
+    |-- payout_intents
+    |-- paper_share_credits
+    +-- settlement_requests
 ```
 
 Data flow:
@@ -186,21 +256,29 @@ enroll
 CLI -> backend -> Postgres
 CLI <- worker_name + worker_token + gate host/port
 
+intent
+CLI -> backend -> Postgres payout_intents
+CLI <- payout_intent_id + active status
+
 mine
 CLI -> XMRig child process
 XMRig -> xpool-gate -> XMRig Proxy -> HashVault
 
 accounting
 backend collector -> xpool-gate /1/workers
-backend collector -> Postgres snapshots + ledger
+backend collector -> Postgres snapshots + point ledger + PaperShare credit
 leaderboard -> sum(point_ledger)
+
+settlement placeholder
+PaperShare credit -> settlement_requests row
+future contract/Crossroads adapter -> tx_hash/status updates
 ```
 
 Scoring:
 
 ```text
 accepted_delta = proxy.current_accepted - db.previous_accepted
-points = accepted_delta * PAPER_SHARE_DIFFICULTY
+paper_share_amount = accepted_delta * PAPER_SHARE_DIFFICULTY
 default PAPER_SHARE_DIFFICULTY = 10000
 ```
 
