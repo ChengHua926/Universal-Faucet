@@ -13,7 +13,6 @@ fn saves_and_loads_worker_config() {
         worker_token: "xp_secret".to_string(),
         proxy_host: "localhost".to_string(),
         proxy_port: 3333,
-        proxy_password: "xpool-dev".to_string(),
         machine_label: "macbook1".to_string(),
     };
 
