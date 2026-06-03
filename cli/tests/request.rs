@@ -1,11 +1,16 @@
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use pretty_assertions::assert_eq;
 use xpool_cli::commands::{Cli, Commands};
 
 #[test]
+fn user_facing_command_is_drip() {
+    assert_eq!(Cli::command().get_name(), "drip");
+}
+
+#[test]
 fn parses_faucet_request_command() {
     let cli = Cli::parse_from([
-        "xpool",
+        "drip",
         "request",
         "base-sepolia",
         "eth",

@@ -18,16 +18,19 @@ use crate::{
         default_config_path, default_log_path, default_pid_path, default_xmrig_config_path,
         load_config, save_config, ConfigError, StoredConfig,
     },
+    xmrig::resolve_xmrig_path,
     xmrig::{default_threads, generate_xmrig_config, XmrigSettings},
 };
 
+const GRACEFUL_STOP_WAIT_ATTEMPTS: usize = 150;
+
 #[derive(Debug, Parser)]
-#[command(name = "xpool")]
-#[command(about = "CLI for the XPool mining points prototype")]
+#[command(name = "drip")]
+#[command(about = "Universal proof-of-work faucet CLI")]
 pub struct Cli {
     #[arg(
         long,
-        env = "XPOOL_API_BASE_URL",
+        env = "DRIP_API_BASE_URL",
         default_value = "http://127.0.0.1:8081",
         global = true
     )]
@@ -54,14 +57,14 @@ pub enum Commands {
     Start {
         #[arg(long)]
         threads: Option<usize>,
-        #[arg(long, env = "XPOOL_XMRIG_PATH", default_value = "xmrig")]
-        xmrig_path: PathBuf,
+        #[arg(long)]
+        xmrig_path: Option<PathBuf>,
     },
     Resume {
         #[arg(long)]
         threads: Option<usize>,
-        #[arg(long, env = "XPOOL_XMRIG_PATH", default_value = "xmrig")]
-        xmrig_path: PathBuf,
+        #[arg(long)]
+        xmrig_path: Option<PathBuf>,
     },
     Pause,
     Stop,
@@ -102,11 +105,11 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
         Commands::Start {
             threads,
             xmrig_path,
-        } => start(threads, &xmrig_path).await,
+        } => start(threads, xmrig_path).await,
         Commands::Resume {
             threads,
             xmrig_path,
-        } => start(threads, &xmrig_path).await,
+        } => start(threads, xmrig_path).await,
         Commands::Pause | Commands::Stop => stop(),
         Commands::Status => status(),
         Commands::Leaderboard => leaderboard(&cli.api_base_url).await,
@@ -186,7 +189,7 @@ async fn leaderboard(api_base_url: &str) -> Result<(), CliError> {
     Ok(())
 }
 
-async fn start(threads: Option<usize>, xmrig_path: &Path) -> Result<(), CliError> {
+async fn start(threads: Option<usize>, xmrig_path: Option<PathBuf>) -> Result<(), CliError> {
     let pid_path = default_pid_path()?;
 
     if let Some(pid) = read_pid(&pid_path)? {
@@ -198,6 +201,7 @@ async fn start(threads: Option<usize>, xmrig_path: &Path) -> Result<(), CliError
     let config = load_config(&default_config_path()?)?;
     let thread_count = threads.unwrap_or_else(default_threads);
     let log_path = default_log_path()?;
+    let xmrig_path = resolve_xmrig_path(xmrig_path.as_deref());
     let xmrig_config = generate_xmrig_config(
         &config,
         XmrigSettings {
@@ -224,7 +228,7 @@ async fn start(threads: Option<usize>, xmrig_path: &Path) -> Result<(), CliError
         .create(true)
         .append(true)
         .open(&log_path)?;
-    let mut command = Command::new(xmrig_path);
+    let mut command = Command::new(&xmrig_path);
     command
         .arg("-c")
         .arg(&xmrig_config_path)
@@ -264,6 +268,12 @@ fn stop() -> Result<(), CliError> {
         return Err(CliError::NotRunning);
     };
 
+    if !process_is_running(pid) {
+        let _ = fs::remove_file(&pid_path);
+        println!("miner stopped; removed stale pid {pid}");
+        return Ok(());
+    }
+
     let status = signal_process(pid, "-INT")?;
     if !status.success() {
         return Err(CliError::StopFailed {
@@ -272,7 +282,7 @@ fn stop() -> Result<(), CliError> {
         });
     }
 
-    for _ in 0..50 {
+    for _ in 0..GRACEFUL_STOP_WAIT_ATTEMPTS {
         if !process_is_running(pid) {
             break;
         }

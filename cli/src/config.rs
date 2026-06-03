@@ -37,7 +37,7 @@ pub enum ConfigError {
     },
     #[error("failed to encode config: {0}")]
     Encode(serde_json::Error),
-    #[error("could not determine home directory; set XPOOL_HOME")]
+    #[error("could not determine home directory; set DRIP_HOME")]
     MissingHome,
 }
 
@@ -69,37 +69,30 @@ pub fn save_config(path: &Path, config: &StoredConfig) -> Result<(), ConfigError
 }
 
 pub fn default_config_path() -> Result<PathBuf, ConfigError> {
-    if let Ok(xpool_home) = std::env::var("XPOOL_HOME") {
-        return Ok(PathBuf::from(xpool_home).join("config.json"));
-    }
-
-    let home = std::env::var("HOME").map_err(|_| ConfigError::MissingHome)?;
-    Ok(PathBuf::from(home).join(".xpool").join("config.json"))
+    Ok(default_home_dir()?.join("config.json"))
 }
 
 pub fn default_xmrig_config_path() -> Result<PathBuf, ConfigError> {
-    if let Ok(xpool_home) = std::env::var("XPOOL_HOME") {
-        return Ok(PathBuf::from(xpool_home).join("xmrig-config.json"));
-    }
-
-    let home = std::env::var("HOME").map_err(|_| ConfigError::MissingHome)?;
-    Ok(PathBuf::from(home).join(".xpool").join("xmrig-config.json"))
+    Ok(default_home_dir()?.join("xmrig-config.json"))
 }
 
 pub fn default_pid_path() -> Result<PathBuf, ConfigError> {
-    if let Ok(xpool_home) = std::env::var("XPOOL_HOME") {
-        return Ok(PathBuf::from(xpool_home).join("xmrig.pid"));
-    }
-
-    let home = std::env::var("HOME").map_err(|_| ConfigError::MissingHome)?;
-    Ok(PathBuf::from(home).join(".xpool").join("xmrig.pid"))
+    Ok(default_home_dir()?.join("xmrig.pid"))
 }
 
 pub fn default_log_path() -> Result<PathBuf, ConfigError> {
+    Ok(default_home_dir()?.join("xmrig.log"))
+}
+
+fn default_home_dir() -> Result<PathBuf, ConfigError> {
+    if let Ok(drip_home) = std::env::var("DRIP_HOME") {
+        return Ok(PathBuf::from(drip_home));
+    }
+
     if let Ok(xpool_home) = std::env::var("XPOOL_HOME") {
-        return Ok(PathBuf::from(xpool_home).join("xmrig.log"));
+        return Ok(PathBuf::from(xpool_home));
     }
 
     let home = std::env::var("HOME").map_err(|_| ConfigError::MissingHome)?;
-    Ok(PathBuf::from(home).join(".xpool").join("xmrig.log"))
+    Ok(PathBuf::from(home).join(".drip"))
 }

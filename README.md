@@ -2,10 +2,10 @@
 
 Universal PoW faucet mining/CLI component.
 
-The product is not a user-facing Monero pool. Users install our CLI, likely
-`drip`, ask for a destination chain/token/address, and the CLI manages local
-RandomX mining. Mining work becomes internal PaperShare credit that a future
-contract/Crossroads integration can settle into the requested asset.
+The product is not a user-facing Monero pool. Users install the `drip` CLI, ask
+for a destination chain/token/address, and the CLI manages local RandomX mining.
+Mining work becomes internal PaperShare credit that a future contract/Crossroads
+integration can settle into the requested asset.
 
 Current mode:
 
@@ -30,7 +30,7 @@ drip status
 drip stop
 ```
 
-Current dev CLI is still named `xpool`.
+The Rust package is still `xpool-cli`, but its user-facing binary is `drip`.
 
 ## CLI
 
@@ -39,9 +39,24 @@ Run from repo root.
 Set an isolated CLI home for local tests:
 
 ```bash
-export XPOOL_HOME=/private/tmp/xpool-demo
-export XPOOL_API_BASE_URL=http://127.0.0.1:8081
-export XPOOL_XMRIG_PATH=/path/to/xmrig
+export DRIP_HOME=/private/tmp/drip-demo
+export DRIP_API_BASE_URL=http://127.0.0.1:8081
+```
+
+The CLI resolves XMRig in this order:
+
+```text
+--xmrig-path
+DRIP_XMRIG_PATH
+legacy XPOOL_XMRIG_PATH
+bundled cli/third_party/xmrig/<platform>/xmrig
+PATH entry named xmrig
+```
+
+Current bundled dev asset:
+
+```text
+cli/third_party/xmrig/darwin-arm64/xmrig
 ```
 
 Enroll:
@@ -80,8 +95,8 @@ Observe local miner:
 
 ```bash
 cargo run -p xpool-cli -- status
-tail -f "$XPOOL_HOME/xmrig.log"
-jq . "$XPOOL_HOME/xmrig-config.json"
+tail -f "$DRIP_HOME/xmrig.log"
+jq . "$DRIP_HOME/xmrig-config.json"
 ```
 
 Read points:
@@ -109,10 +124,10 @@ cargo run -p xpool-cli -- status
 CLI writes:
 
 ```text
-$XPOOL_HOME/config.json        backend credentials + proxy settings
-$XPOOL_HOME/xmrig-config.json  generated XMRig config
-$XPOOL_HOME/xmrig.pid          local XMRig PID
-$XPOOL_HOME/xmrig.log          XMRig runtime log
+$DRIP_HOME/config.json        backend credentials + proxy settings
+$DRIP_HOME/xmrig-config.json  generated XMRig config
+$DRIP_HOME/xmrig.pid          local XMRig PID
+$DRIP_HOME/xmrig.log          XMRig runtime log
 ```
 
 Generated XMRig config uses:
@@ -126,9 +141,9 @@ cpu.rx = one -1 affinity entry per requested mining thread
 The gate validates `worker_token`, then rewrites `pass` to the internal
 XMRig Proxy password before forwarding.
 
-Current limitation: the CLI can point at an XMRig binary through `PATH`,
-`--xmrig-path`, or `XPOOL_XMRIG_PATH`. Production `drip` must bundle or manage
-pinned per-platform XMRig binaries so users install only our CLI.
+Production packaging still needs pinned binaries for every supported platform
+and a donation-policy decision for the bundled XMRig build. The current repo
+bundles only the local macOS arm64 dev binary.
 
 ## Backend And Proxy
 
@@ -145,7 +160,7 @@ Start local infra:
 
 ```bash
 docker compose -f infra/docker-compose.yml build backend xmrig-proxy
-docker compose -f infra/docker-compose.yml up -d postgres backend xmrig-proxy
+docker compose -f infra/docker-compose.yml up -d postgres xmrig-proxy gate backend
 ```
 
 Apply schema:
@@ -228,10 +243,10 @@ Runtime topology:
 
 ```text
 host laptop
-+-- drip/xpool CLI
++-- drip CLI
     |-- POST /api/enroll
     |-- POST /api/payout-intents
-    |-- writes ~/.xpool/*
+    |-- writes ~/.drip/*
     +-- starts managed XMRig
         +-- stratum tcp :3333
 
