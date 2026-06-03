@@ -10,7 +10,7 @@ COPY backend/src backend/src
 COPY cli/src cli/src
 COPY gate/src gate/src
 
-RUN cargo build --release -p xpool-backend
+RUN cargo build --release -p xpool-gate
 
 FROM debian:bookworm-slim AS runtime
 
@@ -20,10 +20,8 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=build /app/target/release/xpool-backend /usr/local/bin/xpool-backend
+COPY --from=build /app/target/release/xpool-gate /usr/local/bin/xpool-gate
 
-ENV BIND_ADDR=0.0.0.0:8081
+EXPOSE 3333 8082
 
-EXPOSE 8081
-
-CMD ["xpool-backend"]
+CMD ["xpool-gate"]

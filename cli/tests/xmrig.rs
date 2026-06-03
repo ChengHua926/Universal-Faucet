@@ -14,7 +14,6 @@ fn generates_xmrig_config_for_proxy_worker() {
         worker_token: "xp_secret".to_string(),
         proxy_host: "localhost".to_string(),
         proxy_port: 3333,
-        proxy_password: "xpool-dev".to_string(),
         machine_label: "macbook1".to_string(),
     };
 
@@ -30,13 +29,14 @@ fn generates_xmrig_config_for_proxy_worker() {
 
     assert_eq!(json["autosave"], false);
     assert_eq!(json["cpu"]["enabled"], true);
-    assert_eq!(json["cpu"]["max-threads-hint"], 2);
+    assert_eq!(json["cpu"]["rx"], serde_json::json!([-1, -1]));
+    assert!(json["cpu"].get("max-threads-hint").is_none());
     assert_eq!(json["pools"][0]["url"], "localhost:3333");
     assert_eq!(
         json["pools"][0]["user"],
         "w_32e47f31771c457f96a19e617421a327"
     );
-    assert_eq!(json["pools"][0]["pass"], "xpool-dev");
+    assert_eq!(json["pools"][0]["pass"], "xp_secret");
     assert_eq!(
         json["pools"][0]["rig-id"],
         "w_32e47f31771c457f96a19e617421a327"
@@ -47,7 +47,7 @@ fn generates_xmrig_config_for_proxy_worker() {
     let object = json.as_object().expect("object");
     assert!(
         !object.contains_key("worker_token"),
-        "XMRig config must not expose backend API token"
+        "XMRig config should pass the token as pool password, not as a separate field"
     );
     assert!(object.get("log-file").is_none());
 }

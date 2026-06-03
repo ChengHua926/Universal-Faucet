@@ -21,8 +21,7 @@ pub struct XmrigConfig {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct XmrigCpuConfig {
     pub enabled: bool,
-    #[serde(rename = "max-threads-hint")]
-    pub max_threads_hint: usize,
+    pub rx: Vec<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -42,12 +41,12 @@ pub fn generate_xmrig_config(config: &StoredConfig, settings: XmrigSettings) -> 
         log_file: settings.log_file,
         cpu: XmrigCpuConfig {
             enabled: true,
-            max_threads_hint: settings.threads,
+            rx: vec![-1; settings.threads],
         },
         pools: vec![XmrigPoolConfig {
             url: format!("{}:{}", config.proxy_host, config.proxy_port),
             user: config.worker_name.clone(),
-            pass: config.proxy_password.clone(),
+            pass: config.worker_token.clone(),
             rig_id: config.worker_name.clone(),
             keepalive: true,
             tls: settings.tls,

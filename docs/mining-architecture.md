@@ -33,7 +33,7 @@ User laptop
     ├── enrolls with ROFL API
     ├── stores worker credentials locally
     └── starts bundled XMRig
-        └── connects to ROFL Stratum port :3333
+        └── connects to ROFL Stratum gate :3333
 
 ROFL TEE
 ├── Rust API/backend
@@ -43,10 +43,17 @@ ROFL TEE
 │   ├── exposes realtime progress
 │   └── runs collector and accounting tasks
 │
-├── XMRig Proxy
+├── xpool-gate
 │   ├── accepts user miners on :3333
-│   ├── tags miners by rig-id / worker id
-│   ├── exposes local stats API on 127.0.0.1:8080
+│   ├── validates worker_name + worker_token against Postgres
+│   ├── rejects duplicate shares globally
+│   ├── rejects stale shares except previous same-height jobs <= 1000ms
+│   ├── rewrites miner password to internal proxy password
+│   ├── forwards accepted submits to XMRig Proxy
+│   └── exposes accounting stats API on 127.0.0.1:8082
+│
+├── XMRig Proxy
+│   ├── accepts only internal gate miners on :3334
 │   └── connects upstream to HashVault pool stratum
 │
 ├── Optional RandomX verifier
@@ -112,7 +119,7 @@ User XMRig
   -> submits shares when hash target is met
 
 Backend collector
-  -> reads proxy per-worker counters
+  -> reads gate per-worker counters
   -> computes deltas
   -> writes internal points
 ```
@@ -190,7 +197,7 @@ difficulty. This is acceptable. Internal points come from XMRig Proxy
 per-worker counters, while HashVault confirms the proxy/pool connection.
 
 HashVault sees the proxy/wallet/account level, not every internal user worker.
-Internal user attribution is handled by XMRig Proxy `/1/workers`.
+Internal user attribution is handled by xpool-gate `/1/workers`.
 
 ## Worker Identity
 
@@ -208,28 +215,26 @@ machine_label = user-facing device label, not used as mining identity
 ```
 
 The CLI should pass the backend-generated worker key to XMRig as both `user`
-and `rig-id`:
+and `rig-id`, and pass the backend-generated worker token as `pass`:
 
 ```text
 user   = w_<random_id>
 rig-id = w_<random_id>
-pass   = shared proxy password for MVP
+pass   = worker_token
 ```
 
-Empirical result from local XMRig Proxy v6.26.0: `/1/workers` attributes rows by
-`rig-id`, so `rig-id` is the collector's canonical worker lookup key.
+The gate rewrites `pass` to the internal XMRig Proxy shared password before
+forwarding login upstream. The shared proxy password must not be returned to or
+stored by the CLI.
 
-The worker token is currently for backend API calls. Stock XMRig Proxy does not
-perform DB-backed per-worker token validation. For the MVP, use a shared proxy
-password plus unguessable worker names. Do not use friendly names like
-`alice.macbook1` as production worker IDs.
+Do not use friendly names like `alice.macbook1` as production worker IDs.
 
 ## Proxy Stats API
 
-The collector must poll:
+The collector must poll xpool-gate:
 
 ```text
-GET http://127.0.0.1:8080/1/workers
+GET http://127.0.0.1:8082/1/workers
 Authorization: Bearer <token>
 ```
 
@@ -459,7 +464,8 @@ http://127.0.0.1:8081/api/enroll
 http://127.0.0.1:8081/api/leaderboard
 127.0.0.1:3333 for local XMRig workers
 127.0.0.1:15432 for local Postgres access
-http://127.0.0.1:8080/1/workers for local proxy debugging
+http://127.0.0.1:8082/1/workers for local gate accounting/debugging
+http://127.0.0.1:8080/1/workers for internal proxy debugging only
 ```
 
 Current local startup:
@@ -507,14 +513,15 @@ Team workflow:
 1. Everyone runs the same docker compose stack.
 2. Everyone uses the same pinned XMRig/XMRig Proxy versions.
 3. Each developer uses a unique local worker name:
-   manual tests: alice.local1, bob.local1, charlie.local1
+   manual tests: enroll first, then use backend-generated w_<random_id>
    CLI tests: backend-generated w_<random_id>
-4. Manual miners use the shared local proxy password from
-   XMRIG_PROXY_WORKER_PASSWORD.
-5. CLI miners use backend-generated worker names and the proxy password
-   returned by /api/enroll.
-6. Local tests mine through local proxy to HashVault test wallet/account.
-7. Shared integration tests assert /1/workers parsing and DB point deltas.
+4. Manual miners connect to the gate with:
+   user = backend-generated worker_name
+   pass = backend-generated worker_token
+5. The gate rewrites `pass` to XMRIG_PROXY_WORKER_PASSWORD before forwarding
+   to the internal XMRig Proxy.
+6. Local tests mine through gate -> local proxy -> HashVault test wallet/account.
+7. Shared integration tests assert gate /1/workers parsing and DB point deltas.
 ```
 
 ## Local Test Cases
@@ -583,7 +590,7 @@ CLI-managed mining validation:
 Need to test next:
 
 ```text
-1. two workers -> proxy -> HashVault
+1. two workers -> gate -> proxy -> HashVault
 2. /1/workers shows separate local counters
 3. HashVault wallet API continues showing proxy wallet/account active
 4. status and realtime endpoints read live_worker_stats

@@ -22,11 +22,10 @@ services:
     environment:
       BIND_ADDR: 0.0.0.0:8081
       DATABASE_URL: postgres://xpool:xpool@postgres:5432/xpool?sslmode=disable
-      XMRIG_PROXY_API_URL: http://xmrig-proxy:8080
+      XMRIG_PROXY_API_URL: http://gate:8082
       XMRIG_PROXY_API_TOKEN: ${XMRIG_PROXY_ACCESS_TOKEN:-devtoken}
       PROXY_HOST: 127.0.0.1
       PROXY_PORT: "3333"
-      PROXY_WORKER_PASSWORD: ${XMRIG_PROXY_WORKER_PASSWORD:-xpool-dev}
       PAPER_SHARE_DIFFICULTY: ${PAPER_SHARE_DIFFICULTY:-10000}
       COLLECTOR_INTERVAL_MS: ${COLLECTOR_INTERVAL_MS:-2000}
     ports:
@@ -34,6 +33,30 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      gate:
+        condition: service_started
+
+  gate:
+    build:
+      context: ..
+      dockerfile: gate/Dockerfile
+    environment:
+      DATABASE_URL: postgres://xpool:xpool@postgres:5432/xpool?sslmode=disable
+      GATE_BIND_ADDR: 0.0.0.0:3333
+      GATE_STATS_ADDR: 0.0.0.0:8082
+      GATE_UPSTREAM_ADDR: xmrig-proxy:3334
+      GATE_UPSTREAM_PASSWORD: ${XMRIG_PROXY_WORKER_PASSWORD:-xpool-dev}
+      GATE_API_TOKEN: ${XMRIG_PROXY_ACCESS_TOKEN:-devtoken}
+      GATE_SAME_HEIGHT_GRACE_MS: ${GATE_SAME_HEIGHT_GRACE_MS:-1000}
+      PAPER_SHARE_DIFFICULTY: ${PAPER_SHARE_DIFFICULTY:-10000}
+    ports:
+      - "127.0.0.1:3333:3333"
+      - "127.0.0.1:8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      xmrig-proxy:
+        condition: service_started
 
   xmrig-proxy:
     platform: linux/amd64
@@ -51,7 +74,7 @@ services:
       - -p
       - ${HASHVAULT_POOL_PASSWORD:-x}
       - --bind
-      - 0.0.0.0:3333
+      - 0.0.0.0:3334
       - --mode
       - simple
       - --custom-diff
@@ -67,7 +90,6 @@ services:
       - ${XMRIG_PROXY_WORKER_PASSWORD:-xpool-dev}
       - --verbose
     ports:
-      - "127.0.0.1:3333:3333"
       - "127.0.0.1:8080:8080"
 
 volumes:

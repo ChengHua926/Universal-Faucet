@@ -74,7 +74,6 @@ pub struct EnrollResponse {
     pub worker_token: String,
     pub proxy_host: String,
     pub proxy_port: u16,
-    pub proxy_password: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -5,8 +5,8 @@ CLI-driven Monero mining points pool prototype.
 Current mode:
 
 ```text
-user XMRig -> local/TEE XMRig Proxy -> HashVault Monero pool
-backend collector -> XMRig Proxy stats -> Postgres point ledger
+user XMRig -> xpool-gate -> internal XMRig Proxy -> HashVault Monero pool
+backend collector -> xpool-gate stats -> Postgres point ledger
 ```
 
 No user payouts. Points are internal paper-share credits.
@@ -66,6 +66,17 @@ $XPOOL_HOME/xmrig.pid          local XMRig PID
 $XPOOL_HOME/xmrig.log          XMRig runtime log
 ```
 
+Generated XMRig config uses:
+
+```text
+user = backend-generated worker_name
+pass = backend-generated worker_token
+cpu.rx = one -1 affinity entry per requested mining thread
+```
+
+The gate validates `worker_token`, then rewrites `pass` to the internal
+XMRig Proxy password before forwarding.
+
 ## Backend And Proxy
 
 Create local env:
@@ -97,26 +108,28 @@ Verify services:
 docker compose -f infra/docker-compose.yml ps
 curl -fsS http://127.0.0.1:8081/health | jq .
 curl -fsS http://127.0.0.1:8081/api/leaderboard | jq .
-curl -fsS -H "Authorization: Bearer devtoken" http://127.0.0.1:8080/1/workers | jq .
+curl -fsS -H "Authorization: Bearer devtoken" http://127.0.0.1:8082/1/workers | jq .
 ```
 
 Ports:
 
 ```text
 127.0.0.1:8081  backend API
-127.0.0.1:3333  XMRig Proxy Stratum listener
-127.0.0.1:8080  XMRig Proxy stats API, local debug only
+127.0.0.1:3333  xpool-gate Stratum listener
+127.0.0.1:8082  xpool-gate stats API, local debug only
+127.0.0.1:8080  internal XMRig Proxy stats API, local debug only
 127.0.0.1:15432 Postgres, local debug only
 ```
 
-Manual miner test without CLI:
+Manual miner test without CLI requires a real enrolled `worker_name` and
+`worker_token`:
 
 ```bash
 xmrig \
   -o 127.0.0.1:3333 \
-  -u manual.local1 \
-  -p xpool-dev \
-  --rig-id manual.local1 \
+  -u <worker_name> \
+  -p <worker_token> \
+  --rig-id <worker_name> \
   -t 1 \
   --coin monero
 ```
@@ -150,8 +163,14 @@ local docker / ROFL TEE
 |   |-- /api/enroll
 |   |-- /api/leaderboard
 |   +-- collector loop
-|-- xmrig-proxy :3333
-|   |-- /1/workers on :8080
+|-- xpool-gate :3333
+|   |-- worker token auth
+|   |-- duplicate share rejection
+|   |-- stale share policy: same height + <= 1000ms
+|   |-- rewrites pass for internal proxy
+|   +-- /1/workers on :8082
+|-- xmrig-proxy :3334
+|   |-- internal only
 |   +-- upstream pool.hashvault.pro:443 TLS
 +-- postgres :5432
     |-- users
@@ -165,14 +184,14 @@ Data flow:
 ```text
 enroll
 CLI -> backend -> Postgres
-CLI <- worker_name + worker_token + proxy password
+CLI <- worker_name + worker_token + gate host/port
 
 mine
 CLI -> XMRig child process
-XMRig -> XMRig Proxy -> HashVault
+XMRig -> xpool-gate -> XMRig Proxy -> HashVault
 
 accounting
-backend collector -> XMRig Proxy /1/workers
+backend collector -> xpool-gate /1/workers
 backend collector -> Postgres snapshots + ledger
 leaderboard -> sum(point_ledger)
 ```
@@ -189,7 +208,8 @@ Auth model:
 
 ```text
 backend API token: worker_token, stored hashed in Postgres
-proxy auth MVP: shared XMRIG_PROXY_WORKER_PASSWORD
+gate auth: worker_name + worker_token checked against Postgres
+internal proxy auth: shared XMRIG_PROXY_WORKER_PASSWORD, not sent to users
 worker identity: backend-generated unguessable w_<random_id>
 ```
 
@@ -198,6 +218,7 @@ Repo layout:
 ```text
 cli/       Rust CLI + XMRig process manager
 backend/   Rust axum API + collector + migrations
+gate/      Rust Stratum gate + share policy + gate stats
 infra/     Docker Compose + XMRig Proxy image
 docs/      long-form architecture handoff
 ```
