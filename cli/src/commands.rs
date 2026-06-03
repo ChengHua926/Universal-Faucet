@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use thiserror::Error;
 
 use crate::{
-    api::{ApiClient, ApiError},
+    api::{ApiClient, ApiError, CreatePayoutIntentRequest},
     config::{
         default_config_path, default_log_path, default_pid_path, default_xmrig_config_path,
         load_config, save_config, ConfigError, StoredConfig,
@@ -43,6 +43,13 @@ pub enum Commands {
         name: String,
         #[arg(long)]
         machine_label: Option<String>,
+    },
+    Request {
+        chain: String,
+        token: String,
+        recipient_address: String,
+        #[arg(long)]
+        receive_pool_token: bool,
     },
     Start {
         #[arg(long)]
@@ -86,6 +93,12 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
             name,
             machine_label,
         } => enroll(&cli.api_base_url, &name, machine_label).await,
+        Commands::Request {
+            chain,
+            token,
+            recipient_address,
+            receive_pool_token,
+        } => request_payout_intent(&chain, &token, &recipient_address, receive_pool_token).await,
         Commands::Start {
             threads,
             xmrig_path,
@@ -124,6 +137,34 @@ async fn enroll(
 
     println!("enrolled {}", config.worker_name);
     println!("proxy {}:{}", config.proxy_host, config.proxy_port);
+    Ok(())
+}
+
+async fn request_payout_intent(
+    chain: &str,
+    token: &str,
+    recipient_address: &str,
+    receive_pool_token: bool,
+) -> Result<(), CliError> {
+    let config = load_config(&default_config_path()?)?;
+    let response = ApiClient::new(&config.api_base_url)
+        .create_payout_intent(&CreatePayoutIntentRequest {
+            worker_name: &config.worker_name,
+            worker_token: &config.worker_token,
+            target_chain: chain,
+            target_token: token,
+            recipient_address,
+            receive_pool_token,
+        })
+        .await?;
+
+    println!("request {}", response.payout_intent_id);
+    println!(
+        "target {} {} {}",
+        response.target_chain, response.target_token, response.recipient_address
+    );
+    println!("status {}", response.status);
+
     Ok(())
 }
 

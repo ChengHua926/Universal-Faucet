@@ -16,6 +16,16 @@ drip status
 drip stop
 ```
 
+Current development CLI shape:
+
+```text
+xpool enroll --name alice --machine-label local1
+xpool request base-sepolia eth 0x1111111111111111111111111111111111111111
+xpool start --threads 1
+xpool status
+xpool stop
+```
+
 The CLI starts managed/bundled XMRig on the user's machine. The user never
 manually installs or runs XMRig. Accepted RandomX mining work becomes internal
 PaperShare credit. A future contract/Crossroads adapter settles that credit into

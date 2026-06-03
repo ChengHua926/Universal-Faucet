@@ -47,6 +47,12 @@ Enroll:
 cargo run -p xpool-cli -- enroll --name alice --machine-label local1
 ```
 
+Create a faucet payout intent with the CLI:
+
+```bash
+cargo run -p xpool-cli -- request base-sepolia eth 0x1111111111111111111111111111111111111111
+```
+
 Create a payout intent directly against the backend:
 
 ```bash
