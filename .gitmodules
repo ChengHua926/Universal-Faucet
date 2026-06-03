@@ -1,0 +1,3 @@
+[submodule "cr-near-01"]
+	path = cr-near-01
+	url = git@github.com:trate3/cr-near-01.git

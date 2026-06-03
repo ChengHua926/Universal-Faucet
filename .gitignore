@@ -1,0 +1,47 @@
+# OS/editor noise
+.DS_Store
+*.swp
+*.swo
+
+# Local secrets and machine-specific config
+.env
+.env.*
+!.env.example
+.codex/
+.agents/
+
+# Nested repository metadata should not be committed into this workspace repo.
+cr-near-01/.git/
+cr-near-01/crossroads-oracle/
+cr-near-01/crossroads-oracle/.git/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / Hardhat / TypeChain
+node_modules/
+artifacts/
+cache/
+typechain-types/
+coverage/
+dist/
+bundle/
+
+# Rust / Foundry
+target/
+out/
+broadcast/
+tmp/
+
+# ROFL generated artifacts
+*.orc
+
+# Logs and generated scratch output
+*.log
+*.tmp
