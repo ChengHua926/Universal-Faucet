@@ -1,7 +1,7 @@
 services:
   oracle:
     build: .
-    image: "ghcr.io/2281469043/crossroads-oracle@sha256:84a418b505a5ad4659783d0d194338d1bdebff3a0b882aacb9656db66bd00abb"
+    image: "docker.io/2281469043/crossroads-oracle@sha256:c24a53086dcafa497c41921db22d4c2cd088d81c322d323a744be6c5d99dd0f7"
     platform: linux/amd64
     restart: on-failure
     ports:
