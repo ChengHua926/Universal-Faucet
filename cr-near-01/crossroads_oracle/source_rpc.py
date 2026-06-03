@@ -8,6 +8,7 @@ feed a signed report. One lagging RPC cannot stall `latest-confirmed` as long as
 quorum still holds.
 """
 
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -50,6 +51,12 @@ class SourceRpcConfig:
     chain_id: int
     require_finalized: bool = False
     timeout_seconds: float = 10.0
+    # SSRF guard: when True, every URL is checked against url_guard before use.
+    # Off by default so the env-configured single-chain path is unchanged; the
+    # multi-chain resolver turns it on because those URLs are attacker-supplied.
+    guard_urls: bool = False
+    # DoS guard: abort reading a JSON-RPC response past this many bytes.
+    max_response_bytes: int = 2_000_000
 
 
 @dataclass(frozen=True)
@@ -318,11 +325,28 @@ class SourceRpcClient:
         if self._rpc_call is not None:
             return self._rpc_call(url, method, params)
 
+        if self.config.guard_urls:
+            # Lazy import avoids a module cycle (url_guard imports SourceRpcError).
+            # Re-checked here (not only at config resolution) to shrink the
+            # DNS-rebinding window before the actual connection.
+            from url_guard import assert_safe_url
+
+            assert_safe_url(url)
+
         payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
         with httpx.Client(timeout=self.config.timeout_seconds) as client:
-            response = client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
+            with client.stream("POST", url, json=payload) as response:
+                response.raise_for_status()
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in response.iter_bytes():
+                    total += len(chunk)
+                    if total > self.config.max_response_bytes:
+                        raise SourceRpcError(
+                            f"source RPC response exceeded {self.config.max_response_bytes} bytes"
+                        )
+                    chunks.append(chunk)
+        data = json.loads(b"".join(chunks))
         if "error" in data:
             raise RuntimeError(data["error"])
         if "result" not in data:

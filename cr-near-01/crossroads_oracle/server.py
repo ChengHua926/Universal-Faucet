@@ -144,16 +144,22 @@ class HeaderReportService:
 
 
 def run_http_server(
-    host: str, port: int, service: HeaderReportService, limiter: FixedWindowRateLimiter
+    host: str,
+    port: int,
+    service: HeaderReportService,
+    limiter: FixedWindowRateLimiter,
+    multi_service: Any | None = None,
 ) -> None:
-    handler = _make_handler(service, limiter)
+    handler = _make_handler(service, limiter, multi_service)
     server = ThreadingHTTPServer((host, int(port)), handler)
     print(f"[http]  listening on {host}:{port}", flush=True)
     server.serve_forever()
 
 
 def _make_handler(
-    service: HeaderReportService, limiter: FixedWindowRateLimiter
+    service: HeaderReportService,
+    limiter: FixedWindowRateLimiter,
+    multi_service: Any | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     class HeaderRequestHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -171,18 +177,32 @@ def _make_handler(
                     self._send_json(429, {"ok": False, "error": "rate_limited"})
                     return
 
+                query = parse_qs(parsed.query)
+                # An explicit ?config=0x... routes to the multi-chain service so
+                # one container can serve any opted-in HeaderReportOracle. Without
+                # it we keep serving the env-configured primary contract.
+                config = _parse_config_address(query)
+                if config is not None and multi_service is None:
+                    self._send_json(501, {"ok": False, "error": "multi_chain_disabled"})
+                    return
+
                 if parsed.path == "/v1/header/latest-confirmed":
-                    self._send_json(200, service.get_latest_confirmed_report())
+                    if config is not None:
+                        self._send_json(200, multi_service.get_latest_confirmed_report(config))
+                    else:
+                        self._send_json(200, service.get_latest_confirmed_report())
                     return
 
                 if parsed.path == "/v1/header":
-                    query = parse_qs(parsed.query)
                     block_values = query.get("block_number")
                     if not block_values:
                         self._send_json(400, {"ok": False, "error": "missing block_number"})
                         return
                     block_number = _parse_block_number(block_values[0])
-                    self._send_json(200, service.get_header_report(block_number))
+                    if config is not None:
+                        self._send_json(200, multi_service.get_header_report(config, block_number))
+                    else:
+                        self._send_json(200, service.get_header_report(block_number))
                     return
 
                 self._send_json(404, {"ok": False, "error": "not_found"})
@@ -196,13 +216,27 @@ def _make_handler(
                 print(f"[http]  unhandled error: {exc}", flush=True)
                 self._send_json(500, {"ok": False, "error": "internal_error", "message": str(exc)})
 
+        def do_OPTIONS(self) -> None:
+            # CORS preflight. The API is public and read-only, so allow any origin
+            # — the report's integrity comes from the TEE signature, not the origin.
+            self.send_response(204)
+            self._send_cors_headers()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def log_message(self, fmt: str, *args: Any) -> None:
             print(f"[http]  {self.address_string()} - {fmt % args}", flush=True)
+
+        def _send_cors_headers(self) -> None:
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
 
         def _send_json(self, status: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
+            self._send_cors_headers()
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -216,3 +250,18 @@ def _parse_block_number(value: str) -> int:
     if block_number < 0:
         raise ValueError("block_number must be non-negative")
     return block_number
+
+
+def _parse_config_address(query: dict[str, list[str]]) -> str | None:
+    """Return the checksummed ?config= oracle address, or None when absent.
+
+    Raises ValueError (-> 400) on a malformed address so callers can't silently
+    fall back to the primary contract when they meant a specific one.
+    """
+    values = query.get("config")
+    if not values:
+        return None
+    raw = values[0].strip()
+    if not raw:
+        return None
+    return Web3.to_checksum_address(raw)

@@ -27,6 +27,19 @@ contract HeaderReportOracle is IBlockHashOracle {
     uint256 public immutable minConfirmations;
     bool public immutable mandateFinalized;
 
+    /**
+     * @dev Source-chain RPC configuration the shared TEE container reads to serve
+     * THIS contract. Letting one ROFL container fetch from per-contract RPC sets
+     * (instead of hardcoding URLs) is what makes a single container serve every
+     * EVM chain. Set once at construction and never mutated, so the trust set is
+     * effectively immutable and a deployer can't swap in colluding RPCs later.
+     * The container additionally only serves a contract whose roflAppID and
+     * headerSigner already match its own identity, so this config being public
+     * does not let an attacker conscript the TEE.
+     */
+    string[] private _sourceRpcUrls;
+    uint256 public immutable sourceRpcQuorum;
+
     address public headerSigner;
     uint64 public headerSignerEpoch;
     bytes32 public headerSignerCommitment;
@@ -58,12 +71,30 @@ contract HeaderReportOracle is IBlockHashOracle {
         bytes21 _roflAppID,
         uint256 _expectedSourceChainId,
         uint256 _minConfirmations,
-        bool _mandateFinalized
+        bool _mandateFinalized,
+        string[] memory _sourceRpcUrlList,
+        uint256 _sourceRpcQuorum
     ) {
+        require(_sourceRpcQuorum > 0, "quorum must be positive");
+        require(_sourceRpcUrlList.length >= _sourceRpcQuorum, "fewer RPC URLs than quorum");
         roflAppID = _roflAppID;
         expectedSourceChainId = _expectedSourceChainId;
         minConfirmations = _minConfirmations;
         mandateFinalized = _mandateFinalized;
+        _sourceRpcUrls = _sourceRpcUrlList;
+        sourceRpcQuorum = _sourceRpcQuorum;
+    }
+
+    // --- Source RPC config (read by the shared TEE container) -----------------
+
+    /// @notice The source-chain RPC endpoints the TEE queries to build reports
+    ///         for this contract. Quorum-many must agree before a report is signed.
+    function sourceRpcUrls() external view returns (string[] memory) {
+        return _sourceRpcUrls;
+    }
+
+    function sourceRpcUrlCount() external view returns (uint256) {
+        return _sourceRpcUrls.length;
     }
 
     // --- Registration (TEE-attested) -----------------------------------------

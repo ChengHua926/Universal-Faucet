@@ -25,6 +25,11 @@ CROSSROADS_HEADER_ORACLE_ABI = [
     {"type": "function", "name": "headerSigner", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "address"}]},
     {"type": "function", "name": "headerSignerEpoch", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint64"}]},
     {"type": "function", "name": "headerSignerCommitment", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "bytes32"}]},
+    {"type": "function", "name": "expectedSourceChainId", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "minConfirmations", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
+    {"type": "function", "name": "mandateFinalized", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "bool"}]},
+    {"type": "function", "name": "sourceRpcUrls", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "string[]"}]},
+    {"type": "function", "name": "sourceRpcQuorum", "stateMutability": "view", "inputs": [], "outputs": [{"name": "", "type": "uint256"}]},
     {
         "type": "function", "name": "registerHeaderSigner", "stateMutability": "nonpayable",
         "inputs": [{"name": "signer", "type": "address"}, {"name": "commitment", "type": "bytes32"}], "outputs": [],

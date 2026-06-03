@@ -14,8 +14,10 @@ contract HeaderReportOracleHarness is HeaderReportOracle {
         bytes21 a,
         uint256 sc,
         uint256 mc,
-        bool mf
-    ) HeaderReportOracle(a, sc, mc, mf) {}
+        bool mf,
+        string[] memory urls,
+        uint256 quorum
+    ) HeaderReportOracle(a, sc, mc, mf, urls, quorum) {}
 
     function setSignerForTest(address signer, uint64 epoch) external {
         headerSigner = signer;

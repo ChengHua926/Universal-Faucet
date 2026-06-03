@@ -18,18 +18,32 @@ async function main() {
   const minConfirmations = BigInt(process.env.MIN_CONFIRMATIONS || "12");
   const mandateFinalized = process.env.MANDATE_FINALIZED === "1";
 
+  // Source-chain RPC set the shared TEE container reads from this contract.
+  const sourceRpcUrls = (process.env.SOURCE_RPC_URLS ||
+    "https://ethereum-sepolia-rpc.publicnode.com,https://sepolia.drpc.org,https://1rpc.io/sepolia")
+    .split(",")
+    .map((u) => u.trim())
+    .filter((u) => u.length > 0);
+  const sourceRpcQuorum = BigInt(
+    process.env.SOURCE_RPC_QUORUM || String(Math.floor(sourceRpcUrls.length / 2) + 1)
+  );
+
   console.log(`Deploying HeaderReportOracle to network: ${hre.network.name}`);
   console.log(`Authorized ROFL app (bytes21): ${ROFL_APP_ID}`);
   console.log(`expectedSourceChainId:         ${expectedSourceChainId}`);
   console.log(`minConfirmations:              ${minConfirmations}`);
   console.log(`mandateFinalized:              ${mandateFinalized}`);
+  console.log(`sourceRpcUrls (${sourceRpcUrls.length}):           ${sourceRpcUrls.join(", ")}`);
+  console.log(`sourceRpcQuorum:               ${sourceRpcQuorum}`);
 
   const factory = await hre.ethers.getContractFactory("HeaderReportOracle");
   const oracle = await factory.deploy(
     ROFL_APP_ID,
     expectedSourceChainId,
     minConfirmations,
-    mandateFinalized
+    mandateFinalized,
+    sourceRpcUrls,
+    sourceRpcQuorum
   );
   await oracle.waitForDeployment();
 

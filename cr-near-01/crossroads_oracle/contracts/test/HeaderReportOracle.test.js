@@ -10,6 +10,12 @@ const fixture = JSON.parse(
 const APP_ID = "0x002339e39056f12efc2e8f1476a871e22555bc4e49";
 const SOURCE_CHAIN_ID = 11155111;
 const MIN_CONFIRMATIONS = 12;
+const SOURCE_RPC_URLS = [
+  "https://ethereum-sepolia-rpc.publicnode.com",
+  "https://sepolia.drpc.org",
+  "https://1rpc.io/sepolia",
+];
+const SOURCE_RPC_QUORUM = 2;
 
 // Map a report object -> the Solidity struct tuple order (overrides via `over`).
 function reportTuple(r, over = {}) {
@@ -33,7 +39,14 @@ function reportTuple(r, over = {}) {
 
 async function deployHarness(mandateFinalized = false) {
   const F = await hre.ethers.getContractFactory("HeaderReportOracleHarness");
-  const h = await F.deploy(APP_ID, SOURCE_CHAIN_ID, MIN_CONFIRMATIONS, mandateFinalized);
+  const h = await F.deploy(
+    APP_ID,
+    SOURCE_CHAIN_ID,
+    MIN_CONFIRMATIONS,
+    mandateFinalized,
+    SOURCE_RPC_URLS,
+    SOURCE_RPC_QUORUM
+  );
   await h.waitForDeployment();
   return h;
 }
@@ -157,7 +170,14 @@ describe("HeaderReportOracle — submitSignedHeader", function () {
 describe("HeaderReportOracle — registration default-deny", function () {
   it("registerHeaderSigner reverts for a non-ROFL caller", async function () {
     const F = await hre.ethers.getContractFactory("HeaderReportOracle");
-    const oracle = await F.deploy(APP_ID, SOURCE_CHAIN_ID, MIN_CONFIRMATIONS, false);
+    const oracle = await F.deploy(
+      APP_ID,
+      SOURCE_CHAIN_ID,
+      MIN_CONFIRMATIONS,
+      false,
+      SOURCE_RPC_URLS,
+      SOURCE_RPC_QUORUM
+    );
     await oracle.waitForDeployment();
     // roflEnsureAuthorizedOrigin is a Sapphire-only precompile -> reverts on EDR.
     await expect(oracle.registerHeaderSigner(hre.ethers.ZeroAddress, hre.ethers.ZeroHash)).to.be

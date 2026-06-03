@@ -9,8 +9,8 @@ Startup:
   4. Validate source RPCs (chain id), require >= quorum usable.
   5. Serve TEE-signed HeaderReports over HTTP.
 
-Unlike Model A (oracle.py) this does NOT push block hashes on-chain. It signs
-reports a client later relays to HeaderReportOracle.submitSignedHeader.
+This does NOT push block hashes on-chain; it signs reports a client later relays
+to HeaderReportOracle.submitSignedHeader.
 """
 
 import os
@@ -28,11 +28,15 @@ from contract_client import (
     submit_registration_action,
 )
 from kms_key import fetch_or_derive_secp256k1_key
+from multi_chain import (
+    DEFAULT_CONFIG_TTL_SECONDS,
+    DEFAULT_MAX_SOURCE_RPC_URLS,
+    MultiChainHeaderReportService,
+)
 from rate_limit import FixedWindowRateLimiter
 from report_cache import ReportCache
 from rofl_appd import RoflAppdClient
 from server import HeaderReportService, HeaderReportServiceConfig, run_http_server
-from signer_key import DEFAULT_SIGNING_KEY_PATH, SignerKey, load_or_create_signing_key
 from source_rpc import SourceRpcClient, SourceRpcConfig
 
 DEFAULT_TARGET_RPC_URL = "https://testnet.sapphire.oasis.io"
@@ -73,8 +77,9 @@ class OracleConfig:
     http_port: int
     http_rate_limit_per_minute: int
     rofl_kms_key_id: str
-    allow_legacy_file_signer: bool
-    signing_key_path: str
+    multi_chain_max_source_rpc_urls: int
+    multi_chain_config_ttl_seconds: int
+    multi_chain_per_config_rate_limit_per_minute: int
 
     @classmethod
     def from_env(cls) -> "OracleConfig":
@@ -117,8 +122,15 @@ class OracleConfig:
             http_port=_int_env("HTTP_PORT", DEFAULT_HTTP_PORT),
             http_rate_limit_per_minute=_int_env("HTTP_RATE_LIMIT_PER_MINUTE", DEFAULT_HTTP_RATE_LIMIT_PER_MINUTE),
             rofl_kms_key_id=os.environ.get("ROFL_KMS_KEY_ID", DEFAULT_ROFL_KMS_KEY_ID),
-            allow_legacy_file_signer=_bool_env("ALLOW_LEGACY_FILE_SIGNER", False),
-            signing_key_path=os.environ.get("ORACLE_SIGNING_KEY_PATH", DEFAULT_SIGNING_KEY_PATH),
+            multi_chain_max_source_rpc_urls=_int_env(
+                "MULTI_CHAIN_MAX_SOURCE_RPC_URLS", DEFAULT_MAX_SOURCE_RPC_URLS
+            ),
+            multi_chain_config_ttl_seconds=_int_env(
+                "MULTI_CHAIN_CONFIG_TTL_SECONDS", DEFAULT_CONFIG_TTL_SECONDS
+            ),
+            multi_chain_per_config_rate_limit_per_minute=_int_env(
+                "MULTI_CHAIN_PER_CONFIG_RATE_LIMIT_PER_MINUTE", 0
+            ),
         )
 
     def source_rpc_config(self) -> SourceRpcConfig:
@@ -208,10 +220,28 @@ def main() -> None:
         signer_epoch=startup.signer_epoch,
         cache=ReportCache(config.header_report_cache_size, config.header_report_cache_refresh_seconds),
     )
+
+    # Same container, every chain: requests carrying ?config=0x... are served from
+    # the named oracle contract's own source config (one container, no per-chain
+    # deploy). The primary contract above is just the default when ?config is absent.
+    w3_target = Web3(Web3.HTTPProvider(config.target_rpc_url))
+    multi_service = MultiChainHeaderReportService(
+        contract_factory=lambda addr: create_contract(w3_target, addr),
+        signer_private_key=startup.signer_key.private_key,
+        signer_address=startup.signer_key.address,
+        sapphire_chain_id=config.sapphire_chain_id,
+        expected_app_id_bytes=normalize_rofl_app_id_bytes(startup.rofl_app_id),
+        ttl_seconds=config.header_report_ttl_seconds,
+        cache_size=config.header_report_cache_size,
+        cache_refresh_seconds=config.header_report_cache_refresh_seconds,
+        max_urls=config.multi_chain_max_source_rpc_urls,
+        config_ttl_seconds=config.multi_chain_config_ttl_seconds,
+        per_config_rate_limit_per_minute=config.multi_chain_per_config_rate_limit_per_minute,
+    )
     print(
         f"[start] MODEL B mode={config.mode} sources={len(valid_sources)} "
         f"quorum={config.source_rpc_quorum} confirmations={config.source_confirmations} "
-        f"contract={config.oracle_contract_address}",
+        f"contract={config.oracle_contract_address} multi_chain=on",
         flush=True,
     )
     run_http_server(
@@ -219,17 +249,16 @@ def main() -> None:
         config.http_port,
         service,
         FixedWindowRateLimiter(config.http_rate_limit_per_minute),
+        multi_service=multi_service,
     )
 
 
 def _load_header_signer(config: OracleConfig, rofl: RoflAppdClient) -> Any:
-    if config.allow_legacy_file_signer:
-        print("[signer] ALLOW_LEGACY_FILE_SIGNER=1; loading legacy file signer", flush=True)
-        return load_or_create_signing_key(config.signing_key_path)
-
+    # The TEE (ROFL KMS) is the only signer: the key is derived in-enclave and
+    # never persisted. No file-backed / non-TEE fallback exists.
     signer = fetch_or_derive_secp256k1_key(rofl, config.rofl_kms_key_id)
     print(f"[signer] using ROFL KMS key id {config.rofl_kms_key_id}", flush=True)
-    return SignerKey(private_key=signer.private_key, address=signer.address)
+    return signer
 
 
 def _int_env(name: str, default: int) -> int:

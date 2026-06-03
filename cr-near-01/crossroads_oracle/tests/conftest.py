@@ -1,12 +1,5 @@
 """Shared pytest setup.
 
-oracle.py reads some config at import time, so set harmless defaults before any
-test imports it. setdefault won't clobber real values if they're already set.
+The Model B modules read configuration lazily (inside functions, not at import),
+so no environment defaults are needed here. Kept as the package's conftest anchor.
 """
-
-import os
-
-os.environ.setdefault(
-    "ORACLE_CONTRACT_ADDRESS", "0x0000000000000000000000000000000000000000"
-)
-os.environ.setdefault("LOCAL_PRIVATE_KEY", "0x" + "11" * 32)
