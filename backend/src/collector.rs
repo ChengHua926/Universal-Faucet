@@ -5,6 +5,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::proxy::workers::{parse_workers_response, ProxyWorker, ProxyWorkersError};
+use crate::settlement::{queue_placeholder_settlement, PaperShareCreditInput};
 
 pub const DEFAULT_PAPER_SHARE_DIFFICULTY: i64 = 10_000;
 
@@ -47,6 +48,7 @@ pub struct CollectorRunSummary {
     pub credited_points: i64,
     pub credited_share_delta: i64,
     pub credited_hash_delta: i64,
+    pub queued_settlements: i64,
 }
 
 #[derive(Debug, Error)]
@@ -164,7 +166,7 @@ pub async fn record_proxy_workers(
                 .checked_mul(config.paper_share_difficulty)
                 .ok_or(CollectorError::PointsOverflow)?;
 
-            sqlx::query(
+            let point_ledger_id: i64 = sqlx::query_scalar(
                 r#"
                 INSERT INTO point_ledger (
                   user_id,
@@ -174,6 +176,7 @@ pub async fn record_proxy_workers(
                   hash_delta
                 )
                 VALUES ($1, $2, $3, $4, $5)
+                RETURNING id
                 "#,
             )
             .bind(db_worker.user_id)
@@ -181,8 +184,23 @@ pub async fn record_proxy_workers(
             .bind(points)
             .bind(accepted_share_delta)
             .bind(hash_delta)
-            .execute(&mut *transaction)
+            .fetch_one(&mut *transaction)
             .await?;
+
+            if queue_placeholder_settlement(
+                &mut transaction,
+                PaperShareCreditInput {
+                    user_id: db_worker.user_id,
+                    worker_id: db_worker.worker_id,
+                    point_ledger_id,
+                    amount: points,
+                },
+            )
+            .await?
+            .is_some()
+            {
+                summary.queued_settlements += 1;
+            }
 
             summary.credited_points += points;
             summary.credited_share_delta += accepted_share_delta;
