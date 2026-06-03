@@ -53,10 +53,12 @@ bundled cli/third_party/xmrig/<platform>/xmrig
 PATH entry named xmrig
 ```
 
-Current bundled dev asset:
+Current bundled asset:
 
 ```text
 cli/third_party/xmrig/darwin-arm64/xmrig
+source-built from xmrig/xmrig v6.26.0 with donation disabled in source
+sha256 abcfb8818acafe7b3bb2d80cb7a9e44c6f366b299c24b92938c2250be3950646
 ```
 
 Enroll:
@@ -141,9 +143,20 @@ cpu.rx = one -1 affinity entry per requested mining thread
 The gate validates `worker_token`, then rewrites `pass` to the internal
 XMRig Proxy password before forwarding.
 
-Production packaging still needs pinned binaries for every supported platform
-and a donation-policy decision for the bundled XMRig build. The current repo
-bundles only the local macOS arm64 dev binary.
+Package XMRig from source:
+
+```bash
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
+```
+
+The script clones official `xmrig/xmrig` source at `v6.26.0`, verifies the
+expected commit, applies `cli/third_party/xmrig/patches/disable-donation.patch`,
+builds the miner, installs it into `cli/third_party/xmrig/<platform>/`, and
+writes `SHA256SUMS`.
+
+The packaging workflow can produce macOS arm64, macOS amd64, and Linux amd64
+artifacts. Windows amd64 is wired into the resolver but still needs a native
+Windows packaging job before release.
 
 ## Backend And Proxy
 
@@ -328,3 +341,33 @@ docs/      long-form architecture handoff
 ```
 
 Longer design notes: `docs/mining-architecture.md`.
+
+## Remaining Work
+
+This component is ready for local mining/accounting integration, but not
+production-finished.
+
+Owned here:
+
+```text
+1. Add release packaging for linux-amd64 and darwin-amd64 artifacts from the
+   source-patched XMRig workflow.
+2. Finish windows-amd64 XMRig packaging with a native dependency path.
+3. Add macOS signing/notarization for drip and bundled XMRig.
+4. Add a backend status endpoint over live_worker_stats.
+5. Add SSE or WebSocket progress streaming over live_worker_stats.
+6. Add a settlement adapter implementation once contract/Crossroads signatures
+   are available.
+7. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+8. Decide whether RandomX raw-share verification is required; it needs raw
+   share capture, not just aggregate gate counters.
+```
+
+External integration points are already documented:
+
+```text
+docs/crossroads-contract-integration.md
+payout_intents
+paper_share_credits
+settlement_requests
+```

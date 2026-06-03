@@ -754,10 +754,12 @@ Recommended order:
 6. Implement leaderboard. DONE
 7. Implement Rust CLI enroll/start/stop/status/leaderboard. DONE for MVP
 8. Add payout_intents + PaperShare credit + placeholder settlements. DONE
-9. Productize CLI from xpool mining UX toward drip faucet UX. IN PROGRESS:
+9. Productize CLI from xpool mining UX toward drip faucet UX. DONE:
    user-facing binary is now drip; internal crate names still use xpool.
 10. Package CLI with pinned XMRig binaries per platform. IN PROGRESS:
-    current repo bundles macOS arm64 dev XMRig only.
+    macOS arm64 is bundled from source with donation disabled; macOS amd64 and
+    Linux amd64 are buildable through the packaging workflow; Windows amd64
+    still needs native dependency packaging before release.
 11. Run end-to-end faucet-component test:
     CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
 12. Run Alice/Bob local integration test through HashVault.
@@ -779,9 +781,10 @@ Raw share capture is not available from /1/workers.
 RandomX light-mode verifier requires raw shares, not just aggregate counters.
 CLI resolves explicit `--xmrig-path`, `DRIP_XMRIG_PATH`, legacy
 `XPOOL_XMRIG_PATH`, bundled platform assets, then `xmrig` on `PATH`.
-Current bundled asset: `cli/third_party/xmrig/darwin-arm64/xmrig`.
-Production drip must add pinned binaries for every supported platform.
-Official prebuilt XMRig keeps the default donation behavior; disabling it
-requires source build and GPL-compliant distribution.
+Current bundled asset: `cli/third_party/xmrig/darwin-arm64/xmrig`, source-built
+from `xmrig/xmrig` v6.26.0 commit `b2ca72480c58d197e18c885d9fc1a0c8d517e60a`
+with `patches/disable-donation.patch`.
+Official prebuilt XMRig keeps the default donation behavior; production drip
+must use source-built binaries and keep GPL distribution obligations explicit.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 ```

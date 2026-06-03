@@ -3,33 +3,59 @@
 This directory contains CLI-managed XMRig binaries. Users should not install or
 run XMRig manually.
 
-Current bundled dev asset:
+Current bundled asset:
 
 ```text
 darwin-arm64/xmrig
 XMRig 6.26.0
 Mach-O 64-bit executable arm64
-sha256 c66f9881bed79a550e18d54b9ae5cf03b91a0e881efdbf7962db2e58de0b4f7b
+source tag v6.26.0
+source commit b2ca72480c58d197e18c885d9fc1a0c8d517e60a
+patch patches/disable-donation.patch
+sha256 abcfb8818acafe7b3bb2d80cb7a9e44c6f366b299c24b92938c2250be3950646
 ```
 
-Source for this local commit:
+Build command:
+
+```bash
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
+```
+
+The build script clones the official `xmrig/xmrig` source at `v6.26.0`, checks
+the expected release commit, applies the donation-disable patch, builds from
+source, installs the binary into the matching platform directory, and writes a
+`SHA256SUMS` file.
+
+Local E2E verification on macOS arm64:
 
 ```text
-/private/tmp/xpool-lab/xmrig-6.26.0/xmrig
+DONATE 0%
+accepted shares through xpool-gate
+drip stop exits without the previous libuv signal-shutdown assertion
 ```
 
-This is enough for local macOS arm64 E2E testing. It is not the final production
-packaging story.
+The previous bundled binary was the official prebuilt `xmrig-6.26.0-macos-arm64`
+archive. Its archive checksum matched the official release checksum, but it
+logged a libuv assertion during signal shutdown and kept the upstream default
+donation behavior. Do not use official prebuilt binaries for production `drip`
+packages if donation must be disabled.
 
-Known behavior in local E2E: this macOS arm64 binary exits after CLI stop, but
-logs a libuv assertion during signal shutdown. The miner process does not remain
-running. Treat this as a dev-binary issue to resolve before production
-packaging.
+Supported build-script targets:
+
+```text
+darwin-arm64
+darwin-amd64
+linux-amd64
+windows-amd64
+```
+
+The GitHub Actions workflow currently builds source-patched macOS and Linux
+artifacts. Windows packaging still needs a native Windows dependency path before
+it should be treated as release-ready.
 
 Before production release:
 
-- build or fetch pinned XMRig binaries for every supported platform
-- verify and record checksums
-- decide donation policy and build from source if donation must be disabled
+- run the packaging workflow for every supported platform
+- verify and record checksums from each produced `SHA256SUMS`
 - handle macOS signing/notarization
 - keep GPL distribution obligations explicit
