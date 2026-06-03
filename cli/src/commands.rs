@@ -2,6 +2,8 @@ use std::{
     fs::{self, OpenOptions},
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    thread,
+    time::Duration,
 };
 
 #[cfg(unix)]
@@ -74,7 +76,7 @@ pub enum CliError {
     AlreadyRunning(u32),
     #[error("no local miner pid file found")]
     NotRunning,
-    #[error("failed to stop miner pid {pid}; kill exited with {status}")]
+    #[error("failed to stop miner pid {pid}; signal command exited with {status}")]
     StopFailed { pid: u32, status: String },
 }
 
@@ -115,7 +117,6 @@ async fn enroll(
         worker_token: response.worker_token,
         proxy_host: response.proxy_host,
         proxy_port: response.proxy_port,
-        proxy_password: response.proxy_password,
         machine_label,
     };
 
@@ -222,12 +223,29 @@ fn stop() -> Result<(), CliError> {
         return Err(CliError::NotRunning);
     };
 
-    let status = Command::new("kill").arg(pid.to_string()).status()?;
+    let status = signal_process(pid, "-INT")?;
     if !status.success() {
         return Err(CliError::StopFailed {
             pid,
             status: status.to_string(),
         });
+    }
+
+    for _ in 0..50 {
+        if !process_is_running(pid) {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    if process_is_running(pid) {
+        let status = signal_process(pid, "-TERM")?;
+        if !status.success() {
+            return Err(CliError::StopFailed {
+                pid,
+                status: status.to_string(),
+            });
+        }
     }
 
     let _ = fs::remove_file(&pid_path);
@@ -269,6 +287,13 @@ fn process_is_running(pid: u32) -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+fn signal_process(pid: u32, signal: &str) -> std::io::Result<std::process::ExitStatus> {
+    Command::new("kill")
+        .arg(signal)
+        .arg(pid.to_string())
+        .status()
 }
 
 fn default_machine_label() -> String {

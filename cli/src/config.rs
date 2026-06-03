@@ -15,7 +15,6 @@ pub struct StoredConfig {
     pub worker_token: String,
     pub proxy_host: String,
     pub proxy_port: u16,
-    pub proxy_password: String,
     pub machine_label: String,
 }
 

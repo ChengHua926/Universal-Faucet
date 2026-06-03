@@ -2681,6 +2681,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "xpool-gate"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "axum",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "yansi"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

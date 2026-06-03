@@ -19,8 +19,6 @@ async fn main() {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(3333);
-    let proxy_password =
-        std::env::var("PROXY_WORKER_PASSWORD").unwrap_or_else(|_| "xpool-dev".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&database_url)
@@ -50,7 +48,7 @@ async fn main() {
         ));
     }
 
-    let state = AppState::with_proxy_password(pool, proxy_host, proxy_port, proxy_password);
+    let state = AppState::new(pool, proxy_host, proxy_port);
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
