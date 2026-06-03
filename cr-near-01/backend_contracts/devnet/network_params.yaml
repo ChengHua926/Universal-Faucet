@@ -1,0 +1,16 @@
+participants:
+  - el_type: geth
+    cl_type: lighthouse
+    count: 1
+
+network_params:
+  network_id: "30121"
+  prefunded_accounts: '{"0x359Eeb0c3266007B1975CA7a399b6FBaB1122824": {"balance": "300ETH"}, "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": {"balance": "999999ETH"}}'
+
+port_publisher:
+  el:
+    enabled: true
+    public_port_start: 32000
+
+additional_services:
+  - dora

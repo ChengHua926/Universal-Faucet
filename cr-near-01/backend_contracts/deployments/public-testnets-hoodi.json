@@ -1,0 +1,31 @@
+{
+  "target": {
+    "chainId": "560048",
+    "deployer": "0x4F1d0c1C5BEd6AD436EdBFB9E9AD00705D22b092"
+  },
+  "sourceChains": {
+    "ethereumSepolia": {
+      "asset": "0xb59c89Ded52D3F4C3EFE76F1A903e231C83f282b",
+      "bridgeOracle": "0x1Bbe3FA7424aca987B80137F67E5250E7f3de8D3",
+      "blockHashOracle": "0xa3facE54D15C4888CCEc8eb061614AAdD9d76062",
+      "helpers": {
+        "provethVerifier": "0xFC51d761b7f9264680379D4C3D90784e5D83513C",
+        "transactionSerializer": "0x53EE705c571990567855E3F8882E0cde20C2fC07"
+      }
+    },
+    "bitcoinTestnet": {
+      "asset": "0xE3F107CA34301eFa67D0ae44a46D1E683f60DaC4",
+      "bridgeOracle": "0xD4026b119a28D4331aDE8b62Fa0e797909999542",
+      "blockHashOracle": "0x13BeC0645Ccf5DDde44064487749824aC0Ea3F96"
+    },
+    "solanaTestnet": {
+      "asset": "0xDDd2c4E5ace2449CAe9F2165D5B5170640B080F0",
+      "bridgeOracle": "0x59C66A4b0e0b3EeB7dcF5456aa7e8D935D04fB94",
+      "libraries": {
+        "SolanaTransactionLib": "0xCB5b9C952193CAa8ffdE8aba53EFfeeF68D6241C"
+      },
+      "oracleReportSigners": [],
+      "oracleThreshold": "0"
+    }
+  }
+}

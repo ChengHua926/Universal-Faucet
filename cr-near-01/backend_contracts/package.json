@@ -1,0 +1,53 @@
+{
+  "name": "crossroads-backend-contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "npx hardhat test",
+    "test:accounting": "npx hardhat test test/asset-accounting.ts",
+    "test:bitcoin": "npx hardhat test test/bitcoin.ts",
+    "test:kurtosis": "npx hardhat test --network kurtosis",
+    "test:dev": "npx hardhat test --network dev",
+    "test:real-committee:kurtosis": "scripts/e2e-real-committee-kurtosis.sh",
+    "test:real-committee:bitcoin": "scripts/e2e-real-committee-bitcoin-regtest.sh",
+    "test:solana": "npx hardhat test test/solana.ts",
+    "test:solana-devnet": "npx hardhat test test/solana-devnet.ts",
+    "test:public-testnets:deploy": "npx hardhat test test/public-testnet/deployment.ts",
+    "test:real-committee:bitcoin-public": "scripts/e2e-public-testnet-bitcoin.sh",
+    "deploy:public-testnets": "npx hardhat run scripts/deploy-public-testnets.ts --network hoodi",
+    "oracle:public-testnets": "npx hardhat run scripts/public-testnet-oracles.ts --network hoodi",
+    "solana:public-testnet:setup": "npx hardhat run scripts/setup-solana-public-testnet.ts",
+    "solana:devnet": "scripts/solana-devnet.sh",
+    "solana:deposit": "npx hardhat run scripts/solana-deposit.ts",
+    "solana:withdraw": "npx hardhat run scripts/solana-withdraw.ts",
+    "test:solana-devnet:local": "scripts/e2e-solana-devnet.sh",
+    "test:real-committee:solana": "scripts/e2e-real-committee-solana-devnet.sh"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^4.0.3",
+    "@nomicfoundation/hardhat-ignition": "^3.0.6",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.2",
+    "@types/chai": "^4.3.20",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.19.3",
+    "chai": "^5.3.3",
+    "ethers": "^6.16.0",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.1.2",
+    "mocha": "^11.7.5",
+    "prettier": "^3.8.1",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "prettier-plugin-solidity": "^2.2.1",
+    "typescript": "~5.8.0"
+  },
+  "dependencies": {
+    "@ethereumjs/rlp": "^10.1.1",
+    "@ethereumjs/trie": "^6.2.1",
+    "@oasisprotocol/sapphire-ethers-v6": "^6.0.1",
+    "@openzeppelin/contracts": "^5.4.0",
+    "solidity-rlp": "^2.0.8",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0"
+  }
+}
