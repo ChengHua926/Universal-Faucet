@@ -14,11 +14,11 @@ on:
   workflow_dispatch: {}
 
 env:
-  # Defaults to the repo owner's namespace (ghcr.io/<owner>/crossroads-oracle),
-  # which GITHUB_TOKEN can push to out of the box. To push elsewhere (e.g. the
-  # 2281469043 account compose.yaml currently references), set an IMAGE_NAMESPACE
-  # repo variable and a PAT with write:packages, and swap the login below.
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crossroads-oracle
+  # ghcr/Docker repository names must be lowercase, so this is hardcoded lowercase
+  # (the repo owner is ChengHua926). GITHUB_TOKEN can push here out of the box.
+  # To push to a different account, change this and supply a PAT with
+  # write:packages in the login step below.
+  IMAGE_NAME: ghcr.io/chenghua926/crossroads-oracle
 
 jobs:
   build-push:

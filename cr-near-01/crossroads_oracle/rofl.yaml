@@ -34,8 +34,8 @@ deployments:
           min_tcb_evaluation_data_number: 18
           tdx: {}
       enclaves:
-        - id: MKHKFPrChmBLaqJ9UdaMk+7e1YO1OvTdzbT6GEf/6vYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
-        - id: MUNq/w1pHzBffaUwVuamcc0/+8OUFkcb3uCtx6HVOZIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: bjCIbvFmkFLLAjI4ZN10/ocYnD35Os6qP2CpYhCpSQwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
+        - id: q2xK7p0dg5bU6RzBs2cu03wCLffsHBN6bMH7Dx3B/0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==
       endorsements:
         - any: {}
       fees: endorsing_node
