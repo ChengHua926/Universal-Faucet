@@ -2,6 +2,8 @@
 
 Read this file first. It captures the current architecture decisions for the
 mining/CLI component and should be enough context for a coding agent to start.
+For the contract/Crossroads handoff contract, read
+`docs/crossroads-contract-integration.md`.
 
 ## Product Goal
 
@@ -478,8 +480,10 @@ Future contract/Crossroads integration should replace the placeholder adapter,
 not the mining/gate/accounting pipeline. Expected status lifecycle:
 
 ```text
-pending -> submitted -> confirmed
+pending -> processing -> submitted -> confirmed
 pending -> failed
+processing -> failed
+submitted -> confirmed
 submitted -> replaced
 ```
 
@@ -575,6 +579,8 @@ docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql p
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml cp backend/migrations/0002_payout_settlement.sql postgres:/tmp/0002_payout_settlement.sql
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0002_payout_settlement.sql
+docker compose -f infra/docker-compose.yml cp backend/migrations/0003_settlement_claims.sql postgres:/tmp/0003_settlement_claims.sql
+docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0003_settlement_claims.sql
 
 curl http://127.0.0.1:8081/health
 curl http://127.0.0.1:8081/api/leaderboard

@@ -60,6 +60,10 @@ this repo, represent those systems with clear interfaces, placeholder status
 transitions, and documentation. Do not implement the swap/bridge itself unless
 explicitly asked.
 
+Contract/Crossroads integration details live in
+`docs/crossroads-contract-integration.md`. Update that file when changing
+handoff tables, status transitions, or adapter semantics.
+
 The backend is expected to eventually authorize or sign an on-chain action that
 credits the user with paper-share/mining-pool-token value. Until the contract is
 ready, keep this as a documented adapter boundary with testable placeholder
@@ -87,7 +91,7 @@ Expose clean integration points for external systems:
 - share accounting: accepted work, rejected work, total hashes, paper-share
   credit
 - settlement request: user/account, amount, destination, idempotency key
-- settlement status: pending, submitted, confirmed, failed, replaced
+- settlement status: pending, processing, submitted, confirmed, failed, replaced
 - audit trail: share deltas, credit deltas, settlement attempts, transaction IDs
 
 Crossroads/contracts can replace the placeholder settlement adapter later
