@@ -2,8 +2,8 @@
 
 This project is a universal proof-of-work faucet, not a Monero points pool.
 
-Users install only our CLI, likely named `drip`. They should not install or
-manually run XMRig. The CLI owns enrollment, payout intent capture, local XMRig
+Users install only our CLI, `drip`. They should not install or manually run
+XMRig. The CLI owns enrollment, payout intent capture, local XMRig
 configuration, process lifecycle, status, and logs.
 
 Primary user-facing shape:
@@ -99,6 +99,5 @@ without changing miner auth, share accounting, or CLI process management.
 
 ## Naming
 
-The existing binaries and docs may still use `xpool` while the mining prototype
-is being productized. Treat `drip` as the intended faucet-facing CLI name unless
-the user chooses a different final name.
+The user-facing CLI binary is `drip`. Internal Rust crate/service names may
+still use `xpool-*` while the mining prototype is being productized.

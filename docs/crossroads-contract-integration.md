@@ -318,8 +318,7 @@ accounting and user intent capture.
 Run the current component flow:
 
 ```bash
-export XPOOL_HOME=/private/tmp/xpool-demo
-export XPOOL_XMRIG_PATH=/path/to/xmrig
+export DRIP_HOME=/private/tmp/drip-demo
 
 cargo run -p xpool-cli -- enroll --name alice --machine-label local1
 cargo run -p xpool-cli -- request base-sepolia eth 0x1111111111111111111111111111111111111111

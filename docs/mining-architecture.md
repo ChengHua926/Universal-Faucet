@@ -9,8 +9,7 @@ For the contract/Crossroads handoff contract, read
 
 Build the mining component for a universal proof-of-work faucet.
 
-Users install one CLI, likely named `drip`, and request a destination
-chain/token/address:
+Users install one CLI, `drip`, and request a destination chain/token/address:
 
 ```text
 drip base-sepolia eth 0x1111111111111111111111111111111111111111
@@ -21,11 +20,11 @@ drip stop
 Current development CLI shape:
 
 ```text
-xpool enroll --name alice --machine-label local1
-xpool request base-sepolia eth 0x1111111111111111111111111111111111111111
-xpool start --threads 1
-xpool status
-xpool stop
+drip enroll --name alice --machine-label local1
+drip request base-sepolia eth 0x1111111111111111111111111111111111111111
+drip start --threads 1
+drip status
+drip stop
 ```
 
 The CLI starts managed/bundled XMRig on the user's machine. The user never
@@ -58,7 +57,7 @@ assembly.
 
 ```text
 User laptop
-└── drip/xpool CLI
+└── drip CLI
     ├── enrolls with backend API
     ├── creates payout intent: target chain/token/address
     ├── stores worker credentials locally
@@ -529,7 +528,7 @@ docker compose
 └── xmrig-proxy
 
 host machine
-├── local xpool CLI
+├── local drip CLI
 ├── local bundled/downloaded XMRig
 └── optional second/third XMRig worker terminals
 ```
@@ -681,12 +680,12 @@ paper-share validation:
   backend leaderboard reported paperdemo with 40000 points and 4 accepted shares
 
 CLI-managed mining validation:
-  xpool enroll created worker w_703c2ba8230742ca9737b1e335a350f8
-  xpool start launched host XMRig with 1 thread against 127.0.0.1:3333
+  drip enroll created worker w_703c2ba8230742ca9737b1e335a350f8
+  drip start launched host XMRig with 1 thread against 127.0.0.1:3333
   proxy /1/workers reported 39 accepted shares for that worker
   backend leaderboard reported clidemo2 with 390000 points and 39 shares
-  xpool leaderboard printed the same paper-share totals
-  xpool stop terminated the host XMRig process
+  drip leaderboard printed the same paper-share totals
+  drip stop terminated the host XMRig process
 ```
 
 Need to test next:
@@ -755,8 +754,10 @@ Recommended order:
 6. Implement leaderboard. DONE
 7. Implement Rust CLI enroll/start/stop/status/leaderboard. DONE for MVP
 8. Add payout_intents + PaperShare credit + placeholder settlements. DONE
-9. Productize CLI from xpool mining UX toward drip faucet UX.
-10. Package CLI with pinned XMRig binaries per platform.
+9. Productize CLI from xpool mining UX toward drip faucet UX. IN PROGRESS:
+   user-facing binary is now drip; internal crate names still use xpool.
+10. Package CLI with pinned XMRig binaries per platform. IN PROGRESS:
+    current repo bundles macOS arm64 dev XMRig only.
 11. Run end-to-end faucet-component test:
     CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
 12. Run Alice/Bob local integration test through HashVault.
@@ -776,8 +777,10 @@ ROFL raw TCP passthrough for Stratum must be verified.
 Postgres-in-TEE persistence/backup story must be decided.
 Raw share capture is not available from /1/workers.
 RandomX light-mode verifier requires raw shares, not just aggregate counters.
-CLI still depends on an external XMRig binary path; production drip must bundle
-or manage pinned XMRig binaries.
+CLI resolves explicit `--xmrig-path`, `DRIP_XMRIG_PATH`, legacy
+`XPOOL_XMRIG_PATH`, bundled platform assets, then `xmrig` on `PATH`.
+Current bundled asset: `cli/third_party/xmrig/darwin-arm64/xmrig`.
+Production drip must add pinned binaries for every supported platform.
 Official prebuilt XMRig keeps the default donation behavior; disabling it
 requires source build and GPL-compliant distribution.
 Contract/Crossroads settlement is a placeholder adapter in this repo.

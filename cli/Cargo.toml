@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [[bin]]
-name = "xpool"
+name = "drip"
 path = "src/main.rs"
 
 [dependencies]

@@ -1,7 +1,7 @@
 use pretty_assertions::assert_eq;
 use xpool_cli::{
     config::StoredConfig,
-    xmrig::{generate_xmrig_config, XmrigSettings},
+    xmrig::{bundled_xmrig_path_for, generate_xmrig_config, XmrigSettings},
 };
 
 #[test]
@@ -50,4 +50,11 @@ fn generates_xmrig_config_for_proxy_worker() {
         "XMRig config should pass the token as pool password, not as a separate field"
     );
     assert!(object.get("log-file").is_none());
+}
+
+#[test]
+fn resolves_darwin_arm64_bundled_xmrig_path() {
+    let path = bundled_xmrig_path_for("macos", "aarch64").expect("bundled path");
+
+    assert!(path.ends_with("cli/third_party/xmrig/darwin-arm64/xmrig"));
 }
