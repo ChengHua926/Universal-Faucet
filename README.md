@@ -19,6 +19,9 @@ Crossroads and smart contracts are owned by other teammates. This repo owns the
 mining pool, CLI, gate, backend accounting, and placeholder integration
 boundary.
 
+For the contract/Crossroads handoff, read
+[docs/crossroads-contract-integration.md](docs/crossroads-contract-integration.md).
+
 Intended faucet-facing UX:
 
 ```bash
@@ -152,6 +155,8 @@ docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql p
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml cp backend/migrations/0002_payout_settlement.sql postgres:/tmp/0002_payout_settlement.sql
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0002_payout_settlement.sql
+docker compose -f infra/docker-compose.yml cp backend/migrations/0003_settlement_claims.sql postgres:/tmp/0003_settlement_claims.sql
+docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0003_settlement_claims.sql
 ```
 
 Verify services:
