@@ -18,13 +18,20 @@ report caching, re-signing, and the per-sign headerSigner re-check), refreshing
 the resolved config on a TTL so URL/quorum edits via redeploy are picked up.
 """
 
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from web3 import Web3
 
-from contract_client import normalize_rofl_app_id_bytes
+from contract_client import (
+    ZERO_ADDRESS,
+    build_header_signer_commitment,
+    normalize_rofl_app_id_bytes,
+    plan_header_signer_registration,
+    submit_registration_action,
+)
 from rate_limit import FixedWindowRateLimiter
 from report_cache import ReportCache
 from server import HeaderReportService, HeaderReportServiceConfig
@@ -65,6 +72,10 @@ class ResolvedSourceConfig:
     rpc_quorum: int
     header_signer: str
     header_signer_epoch: int
+    # True when the contract's headerSigner is still unset (address(0)): a freshly
+    # deployed oracle that opted into our app id but hasn't had the TEE signer
+    # registered yet. The service registers it on first use (Option A).
+    needs_registration: bool = False
 
 
 def resolve_source_config(
@@ -103,9 +114,18 @@ def resolve_source_config(
         raise InvalidOracleConfigError(f"failed reading oracle config: {exc}")
 
     want = Web3.to_checksum_address(signer_address)
-    if chain_header_signer != want:
+    zero = Web3.to_checksum_address(ZERO_ADDRESS)
+    if chain_header_signer == want:
+        needs_registration = False
+    elif chain_header_signer == zero:
+        # Opted into our app id but no signer registered yet -> Option A: the
+        # service registers the TEE signer on first use. Don't reject here.
+        needs_registration = True
+    else:
+        # Bound to a DIFFERENT signer (another oracle/container). We won't take
+        # it over (rotation is intentionally not automatic).
         raise OracleSignerNotRegisteredError(
-            f"oracle headerSigner {chain_header_signer} is not this container's signer {want}"
+            f"oracle headerSigner {chain_header_signer} is a different signer than {want}"
         )
 
     urls = tuple(u.strip() for u in raw_urls if isinstance(u, str) and u.strip())
@@ -129,6 +149,7 @@ def resolve_source_config(
         rpc_quorum=rpc_quorum,
         header_signer=chain_header_signer,
         header_signer_epoch=header_signer_epoch,
+        needs_registration=needs_registration,
     )
 
 
@@ -147,6 +168,7 @@ class MultiChainHeaderReportService:
         cache_size: int,
         cache_refresh_seconds: int,
         source_client_factory: Callable[[SourceRpcConfig], SourceRpcClient] | None = None,
+        rofl_client: Any | None = None,
         max_urls: int = DEFAULT_MAX_SOURCE_RPC_URLS,
         config_ttl_seconds: int = DEFAULT_CONFIG_TTL_SECONDS,
         per_config_rate_limit_per_minute: int = 0,
@@ -162,6 +184,7 @@ class MultiChainHeaderReportService:
         self._cache_size = int(cache_size)
         self._cache_refresh_seconds = int(cache_refresh_seconds)
         self._source_client_factory = source_client_factory or self._default_source_client
+        self._rofl_client = rofl_client
         self._max_urls = int(max_urls)
         self._config_ttl_seconds = int(config_ttl_seconds)
         self._per_config_rate_limit = int(per_config_rate_limit_per_minute)
@@ -170,6 +193,9 @@ class MultiChainHeaderReportService:
         # address(lower) -> (HeaderReportService, resolved_at_ts)
         self._services: dict[str, tuple[HeaderReportService, float]] = {}
         self._limiters: dict[str, FixedWindowRateLimiter] = {}
+        # Serialize first-use signer registration so two concurrent first
+        # requests for the same new contract don't both submit a register tx.
+        self._register_lock = threading.Lock()
 
     def _default_source_client(self, config: SourceRpcConfig) -> SourceRpcClient:
         client = SourceRpcClient(config)
@@ -209,6 +235,17 @@ class MultiChainHeaderReportService:
             max_urls=self._max_urls,
         )
 
+        if resolved.needs_registration:
+            # Freshly deployed opted-in oracle: register the TEE signer (once),
+            # then re-read so the resolved signer/epoch reflect the registration.
+            self._ensure_registered(contract)
+            resolved = resolve_source_config(
+                contract,
+                expected_app_id_bytes=self._expected_app_id_bytes,
+                signer_address=self._signer_address,
+                max_urls=self._max_urls,
+            )
+
         source_config = SourceRpcConfig(
             urls=resolved.rpc_urls,
             quorum=resolved.rpc_quorum,
@@ -237,6 +274,44 @@ class MultiChainHeaderReportService:
         )
         self._services[key] = (service, self._now())
         return service
+
+    def _ensure_registered(self, contract: Any) -> None:
+        """Register THIS TEE's signer into a freshly deployed, opted-in oracle.
+
+        Only reached when the contract's roflAppID already matches ours (checked
+        in resolve) and its headerSigner is still unset. The tx goes through appd
+        so the contract's onlyROFL/roflEnsureAuthorizedOrigin passes; submit_tx is
+        synchronous, so the signer is live once it returns.
+        """
+        if self._rofl_client is None:
+            raise OracleSignerNotRegisteredError(
+                "oracle headerSigner is unset and auto-registration is unavailable (no appd)"
+            )
+        zero = Web3.to_checksum_address(ZERO_ADDRESS)
+        with self._register_lock:
+            current = Web3.to_checksum_address(contract.functions.headerSigner().call())
+            if current == self._signer_address:
+                return  # another concurrent request already registered us
+            if current != zero:
+                raise OracleSignerNotRegisteredError(
+                    f"oracle headerSigner {current} is a different signer"
+                )
+            next_epoch = int(contract.functions.headerSignerEpoch().call()) + 1
+            commitment = build_header_signer_commitment(
+                self._sapphire_chain_id,
+                contract.address,
+                self._expected_app_id_bytes,
+                self._signer_address,
+                next_epoch,
+            )
+            action = plan_header_signer_registration(
+                contract, self._signer_address, commitment, allow_rotation=False
+            )
+            submit_registration_action(self._rofl_client, contract.address, action)
+            print(
+                f"[multi-chain] registered TEE header signer into {contract.address}",
+                flush=True,
+            )
 
 
 class _RateLimitedError(SourceRpcError):

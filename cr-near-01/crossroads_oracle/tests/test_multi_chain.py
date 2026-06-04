@@ -20,6 +20,7 @@ OTHER_APP_ID = bytes.fromhex("00" + "99" * 20)
 ORACLE_A = "0x000000000000000000000000000000000000aAaA"
 ORACLE_B = "0x000000000000000000000000000000000000bBbB"
 SAPPHIRE_CHAIN_ID = 23295
+ZERO = "0x" + "00" * 20
 # Public IP literals so url_guard needs no real DNS.
 PUBLIC_URLS = ["https://93.184.216.34", "https://93.184.216.35"]
 
@@ -44,10 +45,22 @@ def test_resolve_rejects_wrong_app_id():
         resolve_source_config(contract, expected_app_id_bytes=OTHER_APP_ID, signer_address=SIGNER)
 
 
-def test_resolve_rejects_unregistered_signer():
+def test_resolve_rejects_foreign_signer():
+    # headerSigner set to a DIFFERENT non-zero address (another oracle) -> reject.
     contract = _FakeContract(ORACLE_A, header_signer="0x" + "22" * 20)
     with pytest.raises(OracleSignerNotRegisteredError):
         resolve_source_config(contract, expected_app_id_bytes=APP_ID, signer_address=SIGNER)
+
+
+def test_resolve_flags_unset_signer_for_registration():
+    # headerSigner == address(0): freshly deployed, opted-in -> flag for Option A,
+    # don't reject.
+    contract = _FakeContract(ORACLE_A, header_signer=ZERO, epoch=0)
+    resolved = resolve_source_config(
+        contract, expected_app_id_bytes=APP_ID, signer_address=SIGNER
+    )
+    assert resolved.needs_registration is True
+    assert resolved.rpc_urls == tuple(PUBLIC_URLS)
 
 
 def test_resolve_blocks_ssrf_url():
@@ -112,6 +125,52 @@ def test_service_per_config_rate_limit():
     assert getattr(exc.value, "error_code", "") == "rate_limited"
 
 
+def test_service_auto_registers_unset_signer_then_serves():
+    # Fresh contract: signer unset. First request should auto-register via appd,
+    # then serve a report bound to the contract.
+    contract = _FakeContract(ORACLE_A, header_signer=ZERO, epoch=0)
+    rofl = _FakeRofl(contract)
+    svc = MultiChainHeaderReportService(
+        contract_factory=lambda addr: contract,
+        signer_private_key=PRIVATE_KEY,
+        signer_address=SIGNER,
+        sapphire_chain_id=SAPPHIRE_CHAIN_ID,
+        expected_app_id_bytes=APP_ID,
+        ttl_seconds=1800,
+        cache_size=16,
+        cache_refresh_seconds=120,
+        source_client_factory=lambda cfg: _FakeSourceClient(cfg),
+        rofl_client=rofl,
+    )
+
+    report = svc.get_header_report(ORACLE_A, 187)
+    assert report["oracleContractAddress"].lower() == ORACLE_A.lower()
+    assert report["signer"] == SIGNER
+    assert rofl.calls == 1                      # registered exactly once
+    assert contract.header_signer == SIGNER     # registration took effect
+
+    svc.get_header_report(ORACLE_A, 188)        # cached service -> no re-register
+    assert rofl.calls == 1
+
+
+def test_service_unset_signer_without_appd_raises():
+    contract = _FakeContract(ORACLE_A, header_signer=ZERO, epoch=0)
+    svc = MultiChainHeaderReportService(
+        contract_factory=lambda addr: contract,
+        signer_private_key=PRIVATE_KEY,
+        signer_address=SIGNER,
+        sapphire_chain_id=SAPPHIRE_CHAIN_ID,
+        expected_app_id_bytes=APP_ID,
+        ttl_seconds=1800,
+        cache_size=16,
+        cache_refresh_seconds=120,
+        source_client_factory=lambda cfg: _FakeSourceClient(cfg),
+        rofl_client=None,
+    )
+    with pytest.raises(OracleSignerNotRegisteredError):
+        svc.get_header_report(ORACLE_A, 187)
+
+
 def _service(per_config_rate_limit=0):
     factory = _FakeContractFactory()
     svc = MultiChainHeaderReportService(
@@ -168,6 +227,9 @@ class _FakeFunctions:
     def sourceRpcQuorum(self):
         return _FakeFn(self._c.quorum)
 
+    def registerHeaderSigner(self, signer, commitment):
+        return _FakeTxData()
+
 
 class _FakeContract:
     def __init__(
@@ -202,6 +264,23 @@ class _FakeContractFactory:
     def __call__(self, address):
         self.calls[address.lower()] = self.calls.get(address.lower(), 0) + 1
         return _FakeContract(address)
+
+
+class _FakeTxData:
+    def _encode_transaction_data(self):
+        return "0x" + "ab" * 4
+
+
+class _FakeRofl:
+    def __init__(self, contract):
+        self.contract = contract
+        self.calls = 0
+
+    def submit_tx(self, to, data, gas_limit=300_000, value=0, encrypt=False):
+        self.calls += 1
+        # registration takes effect on-chain: signer set, epoch 0 -> 1.
+        self.contract.header_signer = SIGNER
+        self.contract.epoch = 1
 
 
 class _FakeSourceClient:

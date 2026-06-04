@@ -222,12 +222,45 @@ class SourceRpcClient:
                 raise BlockTooNewError(f"block {block_number} is not finalized by source RPC quorum")
 
         block_tag = hex(block_number)
-        block_results = self._call_sources("eth_getBlockByNumber", [block_tag, False])
-        votes = self._build_votes(block_number, block_results, status)
+        # Parallel agreement with early stop: fan out to every source at once and
+        # return the moment `quorum` of them RECOMPUTE the same header hash. We
+        # never wait on the stragglers, so a slow/down RPC at ANY position can't
+        # stall the response (a purely sequential scan would still block on a dead
+        # RPC that happens to sit before quorum is reached).
+        votes: list[RpcVote] = []
+        counts: dict[str, int] = {}
+        winner_hash: str | None = None
+        executor = ThreadPoolExecutor(max_workers=len(self._valid_sources))
+        try:
+            futures = {
+                executor.submit(self._call_one, source, "eth_getBlockByNumber", [block_tag, False]): source
+                for source in self._valid_sources
+            }
+            for future in as_completed(futures):
+                source = futures[future]
+                vote = self._build_vote(source, block_number, future.result(), status)
+                votes.append(vote)
+                if vote.ok and vote.recomputed_block_hash is not None:
+                    normalized = vote.recomputed_block_hash.lower()
+                    counts[normalized] = counts.get(normalized, 0) + 1
+                    if counts[normalized] >= self.config.quorum:
+                        winner_hash = normalized
+                        break
+        finally:
+            # Don't block on stragglers: abandon any still-running RPCs.
+            executor.shutdown(wait=False, cancel_futures=True)
 
-        winner_hash = _find_quorum_hash(votes, self.config.quorum)
+        if winner_hash is None:
+            raise HeaderQuorumError("source RPC block header hash did not reach quorum")
         winner_vote = next(
-            (v for v in votes if v.recomputed_block_hash == winner_hash and v.rlp_header), None
+            (
+                v
+                for v in votes
+                if v.recomputed_block_hash is not None
+                and v.recomputed_block_hash.lower() == winner_hash
+                and v.rlp_header
+            ),
+            None,
         )
         if winner_vote is None or winner_vote.rlp_header is None:
             raise HeaderQuorumError("winning header quorum had no usable RLP header")
@@ -245,65 +278,54 @@ class SourceRpcClient:
             finalized_block_number=finalized_block_number,
         )
 
-    def _build_votes(
+    def _call_one(self, source: SourceEndpoint, method: str, params: list[Any]) -> "_RpcResult":
+        """One source RPC call, never raising — a failure just becomes a no vote."""
+        try:
+            return _RpcResult(True, self._rpc(source.url, method, params), None)
+        except Exception as exc:  # noqa: BLE001
+            return _RpcResult(False, None, str(exc))
+
+    def _build_vote(
         self,
+        source: SourceEndpoint,
         block_number: int,
-        block_results: dict[SourceEndpoint, "_RpcResult"],
+        result: "_RpcResult",
         status: SourceStatus,
-    ) -> list[RpcVote]:
-        votes: list[RpcVote] = []
-        for source in self._valid_sources:
-            tip = status.tips.get(source.source_index)
-            finalized = status.finalized_numbers.get(source.source_index)
-            result = block_results[source]
-            if not result.ok:
-                votes.append(
-                    RpcVote(source.source_index, source.url, tip, finalized, None, None, False, result.error)
-                )
-                continue
+    ) -> RpcVote:
+        """Turn one source's block result into a vote, recomputing + checking its hash."""
+        tip = status.tips.get(source.source_index)
+        finalized = status.finalized_numbers.get(source.source_index)
+        if not result.ok:
+            return RpcVote(source.source_index, source.url, tip, finalized, None, None, False, result.error)
 
-            block = result.value
-            if block is None:
-                votes.append(
-                    RpcVote(source.source_index, source.url, tip, finalized, None, None, False, "eth_getBlockByNumber returned null")
-                )
-                continue
-            if not isinstance(block, dict):
-                votes.append(
-                    RpcVote(source.source_index, source.url, tip, finalized, None, None, False, "eth_getBlockByNumber returned a non-object result")
-                )
-                continue
+        block = result.value
+        if block is None:
+            return RpcVote(source.source_index, source.url, tip, finalized, None, None, False, "eth_getBlockByNumber returned null")
+        if not isinstance(block, dict):
+            return RpcVote(source.source_index, source.url, tip, finalized, None, None, False, "eth_getBlockByNumber returned a non-object result")
 
-            block_hash = block.get("hash")
-            try:
-                number = _parse_quantity(block.get("number"))
-                if number != block_number:
-                    raise HeaderCanonicalizationError(
-                        f"returned block number {number} != requested {block_number}"
-                    )
-                rlp_header = build_rlp_header(block)
-                recomputed = "0x" + keccak(rlp_header).hex()
-                if not isinstance(block_hash, str):
-                    raise HeaderCanonicalizationError("hash must be a hex string")
-                if recomputed.lower() != block_hash.lower():
-                    votes.append(
-                        RpcVote(
-                            source.source_index, source.url, tip, finalized, block_hash, recomputed, False,
-                            f"recomputed block hash {recomputed} does not match JSON hash {block_hash}",
-                        )
-                    )
-                    continue
-                votes.append(
-                    RpcVote(source.source_index, source.url, tip, finalized, block_hash, recomputed, True, None, rlp_header)
+        block_hash = block.get("hash")
+        try:
+            number = _parse_quantity(block.get("number"))
+            if number != block_number:
+                raise HeaderCanonicalizationError(
+                    f"returned block number {number} != requested {block_number}"
                 )
-            except (HeaderCanonicalizationError, ValueError, TypeError) as exc:
-                votes.append(
-                    RpcVote(
-                        source.source_index, source.url, tip, finalized,
-                        block_hash if isinstance(block_hash, str) else None, None, False, str(exc),
-                    )
+            rlp_header = build_rlp_header(block)
+            recomputed = "0x" + keccak(rlp_header).hex()
+            if not isinstance(block_hash, str):
+                raise HeaderCanonicalizationError("hash must be a hex string")
+            if recomputed.lower() != block_hash.lower():
+                return RpcVote(
+                    source.source_index, source.url, tip, finalized, block_hash, recomputed, False,
+                    f"recomputed block hash {recomputed} does not match JSON hash {block_hash}",
                 )
-        return votes
+            return RpcVote(source.source_index, source.url, tip, finalized, block_hash, recomputed, True, None, rlp_header)
+        except (HeaderCanonicalizationError, ValueError, TypeError) as exc:
+            return RpcVote(
+                source.source_index, source.url, tip, finalized,
+                block_hash if isinstance(block_hash, str) else None, None, False, str(exc),
+            )
 
     def _call_sources(self, method: str, params: list[Any]) -> dict[SourceEndpoint, "_RpcResult"]:
         self._require_valid_sources()
@@ -380,17 +402,3 @@ def _quorum_threshold(values: Any, quorum: int, label: str) -> int:
             f"only {len(sorted_values)} source RPCs returned {label}; quorum is {quorum}"
         )
     return sorted_values[quorum - 1]
-
-
-def _find_quorum_hash(votes: list[RpcVote], quorum: int) -> str:
-    counts: dict[str, int] = {}
-    for vote in votes:
-        if not vote.ok or vote.recomputed_block_hash is None:
-            continue
-        normalized = vote.recomputed_block_hash.lower()
-        counts[normalized] = counts.get(normalized, 0) + 1
-
-    for block_hash, count in counts.items():
-        if count >= quorum:
-            return block_hash
-    raise HeaderQuorumError("source RPC block header hash did not reach quorum")

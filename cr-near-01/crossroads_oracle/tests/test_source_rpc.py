@@ -41,6 +41,20 @@ def test_lagging_rpc_does_not_hold_back_latest_confirmed():
     assert result.quorum_tip == 199
 
 
+def test_down_rpc_does_not_block_quorum():
+    # source2 errors on the block fetch; the other two agree -> quorum still met,
+    # and we never depend on the down RPC's response.
+    block = _block(187, "11")
+    rpc = _FakeRpc(tips=(200, 200, 200), blocks=(block, block, block), down=(URLS[2],))
+    client = _client(rpc)
+    client.validate_sources()
+
+    result = client.get_confirmed_header(187)
+
+    assert result.block_number == 187
+    assert result.block_hash == block["hash"]
+
+
 def test_block_too_new_when_depth_quorum_is_missing():
     block = _block(188, "11")
     rpc = _FakeRpc(tips=(200, 199, 120), blocks=(block, block, block))
@@ -89,11 +103,13 @@ def test_finalized_quorum_is_enforced():
 
 
 class _FakeRpc:
-    def __init__(self, tips=(200, 200, 200), finalized=(0, 0, 0), blocks=None, chain_ids=None):
+    def __init__(self, tips=(200, 200, 200), finalized=(0, 0, 0), blocks=None, chain_ids=None, down=()):
         self.tips = dict(zip(URLS, tips))
         self.finalized = dict(zip(URLS, finalized))
         self.blocks = dict(zip(URLS, blocks or (_block(187, "11"),) * 3))
         self.chain_ids = dict(zip(URLS, chain_ids or (CHAIN_ID,) * 3))
+        # URLs that error on the block fetch (simulating a down/unreachable RPC).
+        self.down = set(down)
 
     def call(self, url, method, params):
         if method == "eth_chainId":
@@ -103,6 +119,8 @@ class _FakeRpc:
         if method == "eth_getBlockByNumber" and params[0] == "finalized":
             return {"number": hex(self.finalized[url])}
         if method == "eth_getBlockByNumber":
+            if url in self.down:
+                raise RuntimeError(f"{url} is down")
             return self.blocks[url]
         raise AssertionError(method)
 

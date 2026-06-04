@@ -196,7 +196,8 @@ def register_header_signer(config: OracleConfig, rofl: RoflAppdClient) -> Header
 def main() -> None:
     load_dotenv()
     config = OracleConfig.from_env()
-    startup = register_header_signer(config, RoflAppdClient())
+    rofl = RoflAppdClient()
+    startup = register_header_signer(config, rofl)
 
     source_client = SourceRpcClient(config.source_rpc_config())
     valid_sources = source_client.validate_sources()
@@ -234,6 +235,7 @@ def main() -> None:
         ttl_seconds=config.header_report_ttl_seconds,
         cache_size=config.header_report_cache_size,
         cache_refresh_seconds=config.header_report_cache_refresh_seconds,
+        rofl_client=rofl,
         max_urls=config.multi_chain_max_source_rpc_urls,
         config_ttl_seconds=config.multi_chain_config_ttl_seconds,
         per_config_rate_limit_per_minute=config.multi_chain_per_config_rate_limit_per_minute,
