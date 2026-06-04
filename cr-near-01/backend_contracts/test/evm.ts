@@ -5,7 +5,11 @@ import { ethers as ethersPkg, type JsonRpcApiProvider, VoidSigner } from "ethers
 import { network } from "hardhat";
 
 // import { derToEthSignature } from "../liquefaction/scripts/ethereum-signatures";
-import { getRlpUint, getTxInclusionProof } from "../scripts/inclusion-proofs.js";
+import {
+  getRlpUint,
+  getTxInclusionProof,
+  getTxInclusionProofFromRpc,
+} from "../scripts/inclusion-proofs.js";
 import { createSigningCommittee } from "../scripts/signing-committee.js";
 import type { Type2TxMessageStruct } from "../types/ethers-contracts/EVM/TransactionSerializer.js";
 
@@ -112,8 +116,12 @@ async function getTxInclusion(gethProvider: JsonRpcApiProvider, txHash: string) 
   );
   if (!receipt) throw new Error("Receipt not found");
 
-  // Build the inclusion proof using the helper script.
-  const { proof, rlpBlockHeader } = await getTxInclusionProof(
+  // Build the inclusion proof. Default to the debug-free builder (plain
+  // eth_getBlockByNumber) so any node works — incl. anvil, which has no
+  // debug_getRawBlock. Set INCLUSION_PROOF_MODE=debug to use the debug variant.
+  const proofFn =
+    process.env.INCLUSION_PROOF_MODE === "debug" ? getTxInclusionProof : getTxInclusionProofFromRpc;
+  const { proof, rlpBlockHeader } = await proofFn(
     gethProvider as any,
     receipt.blockNumber,
     receipt.index,

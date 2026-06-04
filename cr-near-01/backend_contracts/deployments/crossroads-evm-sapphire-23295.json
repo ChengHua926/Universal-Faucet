@@ -1,0 +1,24 @@
+{
+  "network": {
+    "name": "sapphireTestnet",
+    "chainId": "23295"
+  },
+  "deployer": "0xB0BC5fE8E1F177eB663237094061932705233fCB",
+  "oracle": "0x3045628524530CB056D74Eacd2C4F0b0A6Bf4388",
+  "provethVerifier": "0xcE747a6ff6b60aB589B82f5Ea9602EE0aFD89007",
+  "transactionSerializer": "0x9E85865baa4D6Eea859E298f11f9FbEB548aEF7C",
+  "bridgeOracle": "0xc5198f5344474aCC266BFDd23bd6cc72CC4Db9AB",
+  "asset": {
+    "address": "0x52B56eEFE06B54f9cf323310Bf3CDa5bfecD87a3",
+    "name": "Crossroads Sepolia ETH",
+    "symbol": "crsETH"
+  },
+  "encAccount": {
+    "address": "0x4B658cEcf016C627B2B47657409d4bF67dE0e1F5",
+    "id": "0x0000000000000000000000004b658cecf016c627b2b47657409d4bf67de0e1f5"
+  },
+  "source": {
+    "chain": "ethereum-sepolia",
+    "chainId": 11155111
+  }
+}

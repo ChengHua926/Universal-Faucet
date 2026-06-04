@@ -43,6 +43,18 @@ export default defineConfig({
       url: process.env.SEPOLIA_RPC_URL ?? configVariable("SEPOLIA_RPC_URL"),
       accounts: [process.env.SEPOLIA_PRIVATE_KEY ?? configVariable("SEPOLIA_PRIVATE_KEY")],
     },
+    // Oasis Sapphire testnet: where the Crossroads asset/bridge stack and the
+    // HeaderReportOracle live. Deposits are *minted* here against a source-chain
+    // (Sepolia) inclusion proof. Plaintext txs are fine — these calls are public,
+    // so no Sapphire calldata encryption is required.
+    sapphireTestnet: {
+      type: "http",
+      chainType: "l1",
+      url: process.env.SAPPHIRE_RPC_URL ?? "https://testnet.sapphire.oasis.io",
+      chainId: 23295,
+      accounts: process.env.SAPPHIRE_PRIVATE_KEY ? [process.env.SAPPHIRE_PRIVATE_KEY] : [],
+      timeout: 120_000,
+    },
     hoodi: {
       type: "http",
       chainType: "l1",
