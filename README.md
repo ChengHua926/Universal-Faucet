@@ -49,7 +49,8 @@ The CLI resolves XMRig in this order:
 --xmrig-path
 DRIP_XMRIG_PATH
 legacy XPOOL_XMRIG_PATH
-bundled cli/third_party/xmrig/<platform>/xmrig
+release-archive ./third_party/xmrig/<platform>/xmrig next to drip
+repo-checkout cli/third_party/xmrig/<platform>/xmrig
 PATH entry named xmrig
 ```
 
@@ -154,9 +155,38 @@ expected commit, applies `cli/third_party/xmrig/patches/disable-donation.patch`,
 builds the miner, installs it into `cli/third_party/xmrig/<platform>/`, and
 writes `SHA256SUMS`.
 
-The packaging workflow can produce macOS arm64, macOS amd64, and Linux amd64
-artifacts. Windows amd64 is wired into the resolver but still needs a native
-Windows packaging job before release.
+The XMRig packaging workflow currently produces macOS arm64 and Linux amd64
+artifacts. macOS amd64 remains script-supported but is not CI-required because
+GitHub-hosted Intel macOS runner availability can leave jobs queued for a long
+time. Windows amd64 is wired into the resolver but still needs a native Windows
+packaging job before release.
+
+Package a user-installable `drip` archive:
+
+```bash
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-drip.sh
+```
+
+Output:
+
+```text
+dist/drip-darwin-arm64.tar.gz
+dist/drip-darwin-arm64.tar.gz.sha256
+```
+
+Each archive contains:
+
+```text
+drip
+third_party/xmrig/<platform>/xmrig
+third_party/xmrig/<platform>/SHA256SUMS
+README.txt
+```
+
+The `Package drip` workflow builds the XMRig binary and the matching CLI archive
+for macOS arm64 and Linux amd64. Linux archives are pre-release until static
+linking or a documented runtime dependency policy is verified.
 
 ## Backend And Proxy
 
@@ -350,16 +380,17 @@ production-finished.
 Owned here:
 
 ```text
-1. Add release packaging for linux-amd64 and darwin-amd64 artifacts from the
-   source-patched XMRig workflow.
-2. Finish windows-amd64 XMRig packaging with a native dependency path.
-3. Add macOS signing/notarization for drip and bundled XMRig.
-4. Add a backend status endpoint over live_worker_stats.
-5. Add SSE or WebSocket progress streaming over live_worker_stats.
-6. Add a settlement adapter implementation once contract/Crossroads signatures
+1. Verify the `Package drip` workflow on GitHub for macOS arm64 and Linux amd64.
+2. Add Linux static linking or document runtime library dependencies.
+3. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
+4. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
+5. Add macOS signing/notarization for drip and bundled XMRig.
+6. Add a backend status endpoint over live_worker_stats.
+7. Add SSE or WebSocket progress streaming over live_worker_stats.
+8. Add a settlement adapter implementation once contract/Crossroads signatures
    are available.
-7. Package the ROFL deployment image and verify raw TCP Stratum ingress.
-8. Decide whether RandomX raw-share verification is required; it needs raw
+9. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+10. Decide whether RandomX raw-share verification is required; it needs raw
    share capture, not just aggregate gate counters.
 ```
 

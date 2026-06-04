@@ -49,13 +49,26 @@ linux-amd64
 windows-amd64
 ```
 
-The GitHub Actions workflow currently builds source-patched macOS and Linux
-artifacts. Windows packaging still needs a native Windows dependency path before
-it should be treated as release-ready.
+The `Package XMRig` workflow currently builds source-patched macOS arm64 and
+Linux amd64 artifacts. macOS amd64 remains script-supported, but is not in the
+required CI matrix because GitHub-hosted Intel macOS runner availability can
+leave jobs queued for a long time. Windows packaging still needs a native
+Windows dependency path before it should be treated as release-ready.
+
+The `Package drip` workflow wraps the matching `drip` binary and XMRig binary
+into a release archive:
+
+```text
+drip
+third_party/xmrig/<platform>/xmrig
+third_party/xmrig/<platform>/SHA256SUMS
+README.txt
+```
 
 Before production release:
 
-- run the packaging workflow for every supported platform
+- run the packaging workflows for every supported platform
 - verify and record checksums from each produced `SHA256SUMS`
+- make Linux packaging static or document runtime library dependencies
 - handle macOS signing/notarization
 - keep GPL distribution obligations explicit

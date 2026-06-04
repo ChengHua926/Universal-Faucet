@@ -1,4 +1,4 @@
-name: Package XMRig
+name: Package drip
 
 on:
   workflow_dispatch:
@@ -30,15 +30,25 @@ jobs:
         run: |
           brew install cmake libuv openssl@3
 
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
       - name: Build source-patched XMRig
         env:
           DRIP_XMRIG_PLATFORM: ${{ matrix.platform }}
         run: scripts/package-xmrig.sh
 
-      - name: Upload packaged XMRig
+      - name: Build drip release archive
+        env:
+          DRIP_XMRIG_PLATFORM: ${{ matrix.platform }}
+        run: scripts/package-drip.sh
+
+      - name: Upload drip package
         uses: actions/upload-artifact@v4
         with:
-          name: xmrig-${{ matrix.platform }}
+          name: drip-${{ matrix.platform }}
           path: |
-            cli/third_party/xmrig/${{ matrix.platform }}/xmrig
-            cli/third_party/xmrig/${{ matrix.platform }}/SHA256SUMS
+            dist/drip-${{ matrix.platform }}.tar.gz
+            dist/drip-${{ matrix.platform }}.tar.gz.sha256
