@@ -17,7 +17,7 @@ jobs:
             runner: macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -45,10 +45,38 @@ jobs:
           DRIP_XMRIG_PLATFORM: ${{ matrix.platform }}
         run: scripts/package-drip.sh
 
+      - name: Verify Linux package in clean Ubuntu
+        if: matrix.platform == 'linux-amd64'
+        run: scripts/verify-linux-package.sh dist/drip-linux-amd64.tar.gz
+
+      - name: Sign and notarize macOS package when credentials exist
+        if: runner.os == 'macOS'
+        env:
+          DRIP_MACOS_CODESIGN_IDENTITY: ${{ secrets.DRIP_MACOS_CODESIGN_IDENTITY }}
+          DRIP_MACOS_INSTALLER_IDENTITY: ${{ secrets.DRIP_MACOS_INSTALLER_IDENTITY }}
+          DRIP_MACOS_NOTARY_KEYCHAIN_PROFILE: ${{ secrets.DRIP_MACOS_NOTARY_KEYCHAIN_PROFILE }}
+          DRIP_MACOS_NOTARY_APPLE_ID: ${{ secrets.DRIP_MACOS_NOTARY_APPLE_ID }}
+          DRIP_MACOS_NOTARY_TEAM_ID: ${{ secrets.DRIP_MACOS_NOTARY_TEAM_ID }}
+          DRIP_MACOS_NOTARY_PASSWORD: ${{ secrets.DRIP_MACOS_NOTARY_PASSWORD }}
+          DRIP_MACOS_BUNDLE_ID: com.universalfaucet.drip
+        run: scripts/sign-notarize-macos.sh "dist/drip-${{ matrix.platform }}.tar.gz"
+
       - name: Upload drip package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: drip-${{ matrix.platform }}
           path: |
             dist/drip-${{ matrix.platform }}.tar.gz
             dist/drip-${{ matrix.platform }}.tar.gz.sha256
+
+      - name: Upload signed macOS extras when present
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v6
+        with:
+          name: drip-${{ matrix.platform }}-macos-signed-extras
+          if-no-files-found: ignore
+          path: |
+            dist/drip-${{ matrix.platform }}.zip
+            dist/drip-${{ matrix.platform }}.zip.sha256
+            dist/drip-${{ matrix.platform }}.pkg
+            dist/drip-${{ matrix.platform }}.pkg.sha256

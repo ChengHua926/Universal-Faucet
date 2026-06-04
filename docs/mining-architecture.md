@@ -800,12 +800,16 @@ with `patches/disable-donation.patch`.
 Official prebuilt XMRig keeps the default donation behavior; production drip
 must use source-built binaries and keep GPL distribution obligations explicit.
 XMRig packages write `BUILDINFO` with source commit, donation patch status, and
-`ldd`/`otool` runtime dependency output. Linux release archives are pre-release
-until those dependencies are validated on a clean supported distro or the miner
-is switched to static linking.
-Current linux-amd64 CI output links dynamically to OpenSSL 3 and glibc-family
-system libraries: `libssl.so.3`, `libcrypto.so.3`, `libm.so.6`, `libc.so.6`,
-and `/lib64/ld-linux-x86-64.so.2`.
+`ldd`/`otool` runtime dependency output. The current Linux release target is
+clean `ubuntu:24.04` amd64, verified by `scripts/verify-linux-package.sh`.
+Static XMRig linking remains the future path for broader distro compatibility.
+Current clean-container validation shows `drip` dynamically links to
+`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, and
+`/lib64/ld-linux-x86-64.so.2`; bundled XMRig dynamically links to
+`libssl.so.3`, `libcrypto.so.3`, `libm.so.6`, `libc.so.6`, and the same loader.
+macOS release archives can be signed/notarized with
+`scripts/sign-notarize-macos.sh`; notarized ZIP tickets are online-only, and a
+signed pkg can be stapled when `DRIP_MACOS_INSTALLER_IDENTITY` is provided.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 Live worker status is token-authenticated; do not expose payout/recipient state
 through unauthenticated worker IDs.

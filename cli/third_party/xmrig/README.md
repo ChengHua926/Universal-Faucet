@@ -70,7 +70,9 @@ Before production release:
 
 - run the packaging workflows for every supported platform
 - verify and record checksums from each produced `SHA256SUMS`
-- validate Linux `BUILDINFO` runtime dependencies on a clean supported distro or
-  make Linux packaging static
-- handle macOS signing/notarization
+- validate Linux packages with `scripts/verify-linux-package.sh`; the current
+  supported target is clean `ubuntu:24.04` amd64, with static linking reserved
+  for broader distro support
+- sign/notarize macOS packages with `scripts/sign-notarize-macos.sh` and Apple
+  Developer credentials before user-facing distribution
 - keep GPL distribution obligations explicit

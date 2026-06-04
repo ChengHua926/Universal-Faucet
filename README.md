@@ -216,13 +216,37 @@ README.txt
 ```
 
 The `Package drip` workflow builds the XMRig binary and the matching CLI archive
-for macOS arm64 and Linux amd64. Linux archives remain pre-release until the
-captured `BUILDINFO` runtime dependencies are validated on a clean supported
-distro or the miner is switched to static linking.
+for macOS arm64 and Linux amd64. The Linux job runs
+`scripts/verify-linux-package.sh` against the produced archive inside a clean
+`ubuntu:24.04` amd64 container. That is the supported Linux target for the
+current dynamically linked package; static linking remains the future path if we
+need broader distro compatibility.
 
-Current linux-amd64 CI `BUILDINFO` shows dynamic links to `libssl.so.3`,
-`libcrypto.so.3`, `libm.so.6`, `libc.so.6`, and
-`/lib64/ld-linux-x86-64.so.2`.
+Current clean-container validation shows `drip` dynamically links to
+`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, and
+`/lib64/ld-linux-x86-64.so.2`; bundled XMRig dynamically links to
+`libssl.so.3`, `libcrypto.so.3`, `libm.so.6`, `libc.so.6`, and the same loader.
+
+Verify a Linux package locally with Docker:
+
+```bash
+scripts/verify-linux-package.sh dist/drip-linux-amd64.tar.gz
+```
+
+Sign and notarize a macOS package when Apple Developer credentials are
+available:
+
+```bash
+DRIP_MACOS_CODESIGN_IDENTITY="Developer ID Application: <name> (<team>)" \
+DRIP_MACOS_NOTARY_KEYCHAIN_PROFILE=drip-notary \
+scripts/sign-notarize-macos.sh dist/drip-darwin-arm64.tar.gz
+```
+
+The macOS script signs `drip` and the bundled XMRig binary, rewrites the tarball
+checksum, creates a `.zip` for `notarytool`, and submits it when notary
+credentials are present. ZIP notarization tickets are published online but ZIPs
+cannot be stapled directly. If `DRIP_MACOS_INSTALLER_IDENTITY` is set, the
+script also creates a signed `.pkg`, submits it, and staples the pkg ticket.
 
 ## Backend And Proxy
 
