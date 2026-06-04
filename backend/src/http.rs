@@ -1,3 +1,5 @@
+use std::{convert::Infallible, time::Duration};
+
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -5,12 +7,16 @@ use argon2::{
 use axum::{
     extract::{Extension, Path},
     http::{header::AUTHORIZATION, HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse, Response,
+    },
     routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
+use tokio_stream::{wrappers::IntervalStream, Stream, StreamExt};
 use uuid::Uuid;
 
 pub fn app() -> Router {
@@ -20,6 +26,10 @@ pub fn app() -> Router {
         .route("/api/payout-intents", post(create_payout_intent))
         .route("/api/leaderboard", get(leaderboard))
         .route("/api/workers/{worker_id}/live", get(worker_live_status))
+        .route(
+            "/api/workers/{worker_id}/live/events",
+            get(worker_live_events),
+        )
 }
 
 pub fn app_with_state(state: AppState) -> Router {
@@ -224,7 +234,49 @@ async fn worker_live_status(
     Path(worker_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<Json<LiveWorkerStatusResponse>, ApiError> {
-    let worker_token = bearer_token(&headers)?;
+    let worker = authorize_worker(&state, worker_id, &headers).await?;
+    Ok(Json(load_worker_live_status(&state, &worker).await?))
+}
+
+async fn worker_live_events(
+    Extension(state): Extension<AppState>,
+    Path(worker_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let worker = authorize_worker(&state, worker_id, &headers).await?;
+    let stream_state = state.clone();
+    let stream =
+        IntervalStream::new(tokio::time::interval(Duration::from_secs(2))).then(move |_| {
+            let state = stream_state.clone();
+            let worker = worker.clone();
+
+            async move {
+                let event = match load_worker_live_status(&state, &worker).await {
+                    Ok(status) => Event::default()
+                        .event("worker.live")
+                        .data(serde_json::to_string(&status).unwrap_or_else(|_| "{}".to_string())),
+                    Err(error) => Event::default()
+                        .event("worker.error")
+                        .data(serde_json::json!({ "error": error.to_string() }).to_string()),
+                };
+
+                Ok(event)
+            }
+        });
+
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keep-alive"),
+    ))
+}
+
+async fn authorize_worker(
+    state: &AppState,
+    worker_id: Uuid,
+    headers: &HeaderMap,
+) -> Result<AuthorizedWorker, ApiError> {
+    let worker_token = bearer_token(headers)?;
     let Some(worker) = sqlx::query(
         r#"
         SELECT
@@ -250,6 +302,19 @@ async fn worker_live_status(
     let token_hash: String = worker.get("token_hash");
     verify_worker_token(worker_token, &token_hash)?;
 
+    Ok(AuthorizedWorker {
+        user_id,
+        worker_id,
+        worker_name: worker.get("worker_name"),
+        display_name: worker.get("display_name"),
+        machine_label: worker.get("machine_label"),
+    })
+}
+
+async fn load_worker_live_status(
+    state: &AppState,
+    worker: &AuthorizedWorker,
+) -> Result<LiveWorkerStatusResponse, ApiError> {
     let live = sqlx::query(
         r#"
         SELECT
@@ -268,7 +333,7 @@ async fn worker_live_status(
         WHERE worker_id = $1
         "#,
     )
-    .bind(worker_id)
+    .bind(worker.worker_id)
     .fetch_optional(&state.pool)
     .await?;
 
@@ -282,7 +347,7 @@ async fn worker_live_status(
         WHERE worker_id = $1 AND status = 'confirmed'
         "#,
     )
-    .bind(worker_id)
+    .bind(worker.worker_id)
     .fetch_one(&state.pool)
     .await?;
 
@@ -301,7 +366,7 @@ async fn worker_live_status(
         LIMIT 1
         "#,
     )
-    .bind(worker_id)
+    .bind(worker.worker_id)
     .fetch_optional(&state.pool)
     .await?
     .map(|row| ActivePayoutIntentResponse {
@@ -326,17 +391,17 @@ async fn worker_live_status(
         WHERE psc.worker_id = $1
         "#,
     )
-    .bind(worker_id)
+    .bind(worker.worker_id)
     .fetch_one(&state.pool)
     .await?;
 
     let live = LiveStatsRow::from_row(live);
 
-    Ok(Json(LiveWorkerStatusResponse {
-        worker_id,
-        worker_name: worker.get("worker_name"),
-        display_name: worker.get("display_name"),
-        machine_label: worker.get("machine_label"),
+    Ok(LiveWorkerStatusResponse {
+        worker_id: worker.worker_id,
+        worker_name: worker.worker_name.clone(),
+        display_name: worker.display_name.clone(),
+        machine_label: worker.machine_label.clone(),
         connected: live.connections > 0,
         connections: live.connections,
         accepted_shares: live.accepted_shares,
@@ -360,8 +425,8 @@ async fn worker_live_status(
             failed_count: settlement.get("failed_count"),
             pending_amount: settlement.get("pending_amount"),
         },
-        user_id,
-    }))
+        user_id: worker.user_id,
+    })
 }
 
 fn required_trimmed<'a>(field_name: &'static str, value: &'a str) -> Result<&'a str, ApiError> {
@@ -552,6 +617,15 @@ impl LiveStatsRow {
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     error: String,
+}
+
+#[derive(Debug, Clone)]
+struct AuthorizedWorker {
+    user_id: Uuid,
+    worker_id: Uuid,
+    worker_name: String,
+    display_name: String,
+    machine_label: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]

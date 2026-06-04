@@ -62,6 +62,22 @@ async fn live_worker_status_requires_token_and_returns_current_accounting_state(
 
     assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
 
+    let unauthorized_events_response =
+        app_with_state(AppState::new(pool.clone(), "127.0.0.1", 3333))
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/workers/{worker_id}/live/events"))
+                    .body(Body::empty())
+                    .expect("live events request"),
+            )
+            .await
+            .expect("unauthorized events response");
+
+    assert_eq!(
+        unauthorized_events_response.status(),
+        StatusCode::UNAUTHORIZED
+    );
+
     let create_intent_response = app_with_state(AppState::new(pool.clone(), "127.0.0.1", 3333))
         .oneshot(
             Request::builder()
@@ -136,6 +152,26 @@ async fn live_worker_status_requires_token_and_returns_current_accounting_state(
     );
     assert_eq!(live["settlement"]["pending_count"], 1);
     assert_eq!(live["settlement"]["pending_amount"], 30_000);
+
+    let live_events_response = app_with_state(AppState::new(pool.clone(), "127.0.0.1", 3333))
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/workers/{worker_id}/live/events"))
+                .header("authorization", format!("Bearer {worker_token}"))
+                .body(Body::empty())
+                .expect("live events request"),
+        )
+        .await
+        .expect("live events response");
+
+    assert_eq!(live_events_response.status(), StatusCode::OK);
+    assert_eq!(
+        live_events_response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("text/event-stream")
+    );
 }
 
 fn proxy_worker(

@@ -432,7 +432,8 @@ live_worker_stats = current source for status UI
 point_ledger = append-only source for leaderboard compatibility
 paper_share_credits = contract-facing credit source
 settlement_requests = placeholder handoff queue for contract/Crossroads adapter
-SSE/WebSocket = push latest live state to connected clients
+GET /api/workers/{worker_id}/live = token-authenticated current worker view
+GET /api/workers/{worker_id}/live/events = token-authenticated SSE stream
 ```
 
 For 100 workers, Postgres is fine. 100 miners connect to XMRig Proxy, not
@@ -769,7 +770,10 @@ Recommended order:
     `GET /api/workers/{worker_id}/live` requires `Authorization: Bearer
     <worker_token>` and returns live shares, hashes, paper-share totals, active
     payout intent, and settlement summary.
-14. Implement realtime SSE over live_worker_stats.
+14. Implement realtime SSE over live_worker_stats. DONE:
+    `GET /api/workers/{worker_id}/live/events` requires `Authorization: Bearer
+    <worker_token>` and emits `worker.live` events with the same JSON shape as
+    the live status endpoint.
 15. Package ROFL container with backend + proxy + Postgres.
 16. Deploy to ROFL large instance.
 17. Add RandomX light-mode verification only after raw-share access is designed.
@@ -797,4 +801,6 @@ dependencies are explicitly verified.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 Live worker status is token-authenticated; do not expose payout/recipient state
 through unauthenticated worker IDs.
+Realtime progress is SSE first; WebSocket is optional only if the frontend later
+needs bidirectional controls.
 ```

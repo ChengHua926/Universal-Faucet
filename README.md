@@ -114,8 +114,17 @@ curl -fsS "http://127.0.0.1:8081/api/workers/<worker_id>/live" \
   -H "authorization: Bearer <worker_token>" | jq .
 ```
 
-The live status endpoint is worker-token authenticated. Do not expose payout
-intent or recipient status through unauthenticated worker IDs.
+Subscribe to realtime live worker status:
+
+```bash
+curl -N "http://127.0.0.1:8081/api/workers/<worker_id>/live/events" \
+  -H "authorization: Bearer <worker_token>"
+```
+
+The SSE stream emits `worker.live` events containing the same JSON shape as
+`GET /api/workers/<worker_id>/live`; backend read errors are emitted as
+`worker.error` events. Live status endpoints are worker-token authenticated. Do
+not expose payout intent or recipient status through unauthenticated worker IDs.
 
 Read points:
 
@@ -399,11 +408,10 @@ Owned here:
 2. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
 3. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
 4. Add macOS signing/notarization for drip and bundled XMRig.
-5. Add SSE or WebSocket progress streaming over live_worker_stats.
-6. Add a settlement adapter implementation once contract/Crossroads signatures
+5. Add a settlement adapter implementation once contract/Crossroads signatures
    are available.
-7. Package the ROFL deployment image and verify raw TCP Stratum ingress.
-8. Decide whether RandomX raw-share verification is required; it needs raw
+6. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+7. Decide whether RandomX raw-share verification is required; it needs raw
    share capture, not just aggregate gate counters.
 ```
 
