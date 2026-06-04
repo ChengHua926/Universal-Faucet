@@ -64,6 +64,9 @@ Contract/Crossroads integration details live in
 `docs/crossroads-contract-integration.md`. Update that file when changing
 handoff tables, status transitions, or adapter semantics.
 
+Current component handoff details live in `docs/component-handoff.md`. Read that
+file after this one when starting a new mining/CLI/backend task.
+
 The backend is expected to eventually authorize or sign an on-chain action that
 credits the user with paper-share/mining-pool-token value. Until the contract is
 ready, keep this as a documented adapter boundary with testable placeholder

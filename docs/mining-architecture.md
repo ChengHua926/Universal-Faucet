@@ -1,8 +1,8 @@
 # Universal Faucet Mining Architecture Handoff
 
-Read this file first. It captures the current architecture decisions for the
-mining/CLI component and should be enough context for a coding agent to start.
-For the contract/Crossroads handoff contract, read
+For the concise current-state handoff, read `docs/component-handoff.md` first.
+This file captures the longer architecture decisions for the mining/CLI
+component. For the contract/Crossroads handoff contract, read
 `docs/crossroads-contract-integration.md`.
 
 ## Product Goal
@@ -760,12 +760,12 @@ Recommended order:
 8. Add payout_intents + PaperShare credit + placeholder settlements. DONE
 9. Productize CLI from xpool mining UX toward drip faucet UX. DONE:
    user-facing binary is now drip; internal crate names still use xpool.
-10. Package CLI with pinned XMRig binaries per platform. IN PROGRESS:
-    macOS arm64 is bundled from source with donation disabled; macOS arm64 and
-    Linux amd64 drip archives are buildable through packaging workflows; macOS
-    amd64 is deferred because GitHub-hosted Intel macOS runner availability can
-    keep jobs queued; Windows amd64 still needs native dependency packaging
-    before release.
+10. Package CLI with pinned XMRig binaries per platform. DONE for macOS arm64
+    and Linux amd64:
+    source-built XMRig has donation disabled, BUILDINFO/SHA256SUMS are shipped,
+    Linux is validated in clean ubuntu:24.04, and macOS signing/notarization
+    hooks exist but require Apple Developer secrets for real notarized output.
+    macOS amd64 and Windows amd64 remain deferred.
 11. Run end-to-end faucet-component test:
     CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
 12. Run Alice/Bob local integration test through HashVault.

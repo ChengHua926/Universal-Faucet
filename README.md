@@ -19,6 +19,9 @@ Crossroads and smart contracts are owned by other teammates. This repo owns the
 mining pool, CLI, gate, backend accounting, and placeholder integration
 boundary.
 
+For the concise component handoff, read
+[docs/component-handoff.md](docs/component-handoff.md).
+
 For the contract/Crossroads handoff, read
 [docs/crossroads-contract-integration.md](docs/crossroads-contract-integration.md).
 
@@ -442,14 +445,16 @@ production-finished.
 Owned here:
 
 ```text
-1. Validate Linux runtime dependencies on a clean supported distro or switch to
-   static linking.
-2. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
-3. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
-4. Add macOS signing/notarization for drip and bundled XMRig.
-5. Add a settlement adapter implementation once contract/Crossroads signatures
+1. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+2. Run full production E2E:
+   drip -> gate -> proxy -> HashVault -> credit -> settlement_request.
+3. Add a settlement adapter implementation once contract/Crossroads signatures
    are available.
-6. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+4. Configure Apple Developer signing/notary secrets for real notarized macOS
+   artifacts.
+5. Finish windows-amd64 XMRig and drip packaging with a native dependency path
+   if Windows support matters.
+6. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
 7. Decide whether RandomX raw-share verification is required; it needs raw
    share capture, not just aggregate gate counters.
 ```
