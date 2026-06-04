@@ -1,7 +1,7 @@
 services:
   oracle:
     build: .
-    image: "ghcr.io/chenghua926/crossroads-oracle@sha256:7c0b08d48ecf31c47e5de63ea4699df80c651b3211c91cd5ea8aaf8f9e44e286"
+    image: "ghcr.io/chenghua926/crossroads-oracle@sha256:cb9fd1e0c75f25f363c810e34dc27891cb7afbce71990c67c8e530d10d90547b"
     platform: linux/amd64
     restart: on-failure
     ports:
