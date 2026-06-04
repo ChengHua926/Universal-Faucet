@@ -757,9 +757,11 @@ Recommended order:
 9. Productize CLI from xpool mining UX toward drip faucet UX. DONE:
    user-facing binary is now drip; internal crate names still use xpool.
 10. Package CLI with pinned XMRig binaries per platform. IN PROGRESS:
-    macOS arm64 is bundled from source with donation disabled; macOS amd64 and
-    Linux amd64 are buildable through the packaging workflow; Windows amd64
-    still needs native dependency packaging before release.
+    macOS arm64 is bundled from source with donation disabled; macOS arm64 and
+    Linux amd64 drip archives are buildable through packaging workflows; macOS
+    amd64 is deferred because GitHub-hosted Intel macOS runner availability can
+    keep jobs queued; Windows amd64 still needs native dependency packaging
+    before release.
 11. Run end-to-end faucet-component test:
     CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
 12. Run Alice/Bob local integration test through HashVault.
@@ -780,11 +782,14 @@ Postgres-in-TEE persistence/backup story must be decided.
 Raw share capture is not available from /1/workers.
 RandomX light-mode verifier requires raw shares, not just aggregate counters.
 CLI resolves explicit `--xmrig-path`, `DRIP_XMRIG_PATH`, legacy
-`XPOOL_XMRIG_PATH`, bundled platform assets, then `xmrig` on `PATH`.
+`XPOOL_XMRIG_PATH`, release-archive assets next to the drip executable,
+repo-checkout bundled platform assets, then `xmrig` on `PATH`.
 Current bundled asset: `cli/third_party/xmrig/darwin-arm64/xmrig`, source-built
 from `xmrig/xmrig` v6.26.0 commit `b2ca72480c58d197e18c885d9fc1a0c8d517e60a`
 with `patches/disable-donation.patch`.
 Official prebuilt XMRig keeps the default donation behavior; production drip
 must use source-built binaries and keep GPL distribution obligations explicit.
+Linux release archives are pre-release until static linking or runtime library
+dependencies are explicitly verified.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 ```

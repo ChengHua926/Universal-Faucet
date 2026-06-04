@@ -1,7 +1,10 @@
 use pretty_assertions::assert_eq;
+use std::path::Path;
 use xpool_cli::{
     config::StoredConfig,
-    xmrig::{bundled_xmrig_path_for, generate_xmrig_config, XmrigSettings},
+    xmrig::{
+        bundled_xmrig_path_for, generate_xmrig_config, packaged_xmrig_path_for_exe, XmrigSettings,
+    },
 };
 
 #[test]
@@ -57,4 +60,19 @@ fn resolves_darwin_arm64_bundled_xmrig_path() {
     let path = bundled_xmrig_path_for("macos", "aarch64").expect("bundled path");
 
     assert!(path.ends_with("cli/third_party/xmrig/darwin-arm64/xmrig"));
+}
+
+#[test]
+fn resolves_packaged_xmrig_next_to_drip_binary() {
+    let path = packaged_xmrig_path_for_exe(
+        "linux",
+        "x86_64",
+        Path::new("/opt/drip-release/drip-linux-amd64/drip"),
+    )
+    .expect("packaged path");
+
+    assert_eq!(
+        path,
+        Path::new("/opt/drip-release/drip-linux-amd64/third_party/xmrig/linux-amd64/xmrig")
+    );
 }

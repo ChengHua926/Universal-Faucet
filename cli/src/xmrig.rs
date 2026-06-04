@@ -81,19 +81,71 @@ pub fn resolve_xmrig_path(explicit: Option<&Path>) -> PathBuf {
     }
 
     if let Some(path) = bundled_xmrig_path() {
-        if path.exists() {
-            return path;
-        }
+        return path;
     }
 
     PathBuf::from("xmrig")
 }
 
 pub fn bundled_xmrig_path() -> Option<PathBuf> {
-    bundled_xmrig_path_for(env::consts::OS, env::consts::ARCH)
+    let current_exe = env::current_exe().ok();
+    bundled_xmrig_path_candidates_for(env::consts::OS, env::consts::ARCH, current_exe.as_deref())
+        .into_iter()
+        .find(|path| path.exists())
 }
 
 pub fn bundled_xmrig_path_for(target_os: &str, target_arch: &str) -> Option<PathBuf> {
+    source_tree_xmrig_path_for(target_os, target_arch)
+}
+
+pub fn packaged_xmrig_path_for_exe(
+    target_os: &str,
+    target_arch: &str,
+    exe_path: &Path,
+) -> Option<PathBuf> {
+    let platform = xmrig_platform(target_os, target_arch)?;
+    Some(
+        exe_path
+            .parent()?
+            .join("third_party")
+            .join("xmrig")
+            .join(platform)
+            .join(xmrig_binary_name(target_os)),
+    )
+}
+
+fn bundled_xmrig_path_candidates_for(
+    target_os: &str,
+    target_arch: &str,
+    current_exe: Option<&Path>,
+) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Some(exe_path) = current_exe {
+        if let Some(path) = packaged_xmrig_path_for_exe(target_os, target_arch, exe_path) {
+            candidates.push(path);
+        }
+    }
+
+    if let Some(path) = source_tree_xmrig_path_for(target_os, target_arch) {
+        candidates.push(path);
+    }
+
+    candidates
+}
+
+fn source_tree_xmrig_path_for(target_os: &str, target_arch: &str) -> Option<PathBuf> {
+    let platform = xmrig_platform(target_os, target_arch)?;
+    Some(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("third_party")
+            .join("xmrig")
+            .join(platform)
+            .join(xmrig_binary_name(target_os)),
+    )
+}
+
+fn xmrig_platform(target_os: &str, target_arch: &str) -> Option<&'static str> {
     let platform = match (target_os, target_arch) {
         ("macos", "aarch64") => "darwin-arm64",
         ("macos", "x86_64") => "darwin-amd64",
@@ -102,15 +154,13 @@ pub fn bundled_xmrig_path_for(target_os: &str, target_arch: &str) -> Option<Path
         _ => return None,
     };
 
-    Some(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("third_party")
-            .join("xmrig")
-            .join(platform)
-            .join(if target_os == "windows" {
-                "xmrig.exe"
-            } else {
-                "xmrig"
-            }),
-    )
+    Some(platform)
+}
+
+fn xmrig_binary_name(target_os: &str) -> &'static str {
+    if target_os == "windows" {
+        "xmrig.exe"
+    } else {
+        "xmrig"
+    }
 }
