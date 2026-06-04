@@ -82,8 +82,9 @@ class HeaderReportService:
             "signerEpoch": self.signer_epoch,
             "endpoints": {
                 "GET /healthz": "liveness; no RPC/contract calls",
-                "GET /v1/header/latest-confirmed": "signed report for the newest quorum-confirmed block",
-                "GET /v1/header?block_number=N": "signed report for block N once quorum-confirmed",
+                "GET /v1/header/latest-confirmed": "newest quorum-confirmed block (add ?config=0xOracle for a specific chain's oracle)",
+                "GET /v1/header?block_number=N": "block N (add ?config=0xOracle for a specific chain's oracle)",
+                "POST /v1/header": "JSON body {\"oracle_contract\":\"0x...\", \"block_number\": N?}; oracle_contract is required, block_number optional",
             },
         }
 
@@ -206,15 +207,44 @@ def _make_handler(
                     return
 
                 self._send_json(404, {"ok": False, "error": "not_found"})
-            except SourceRpcError as exc:
-                self._send_json(exc.status_code, {"ok": False, "error": exc.error_code, "message": exc.message})
-            except SignerMismatchError as exc:
-                self._send_json(503, {"ok": False, "error": "signer_mismatch", "message": str(exc)})
-            except ValueError as exc:
-                self._send_json(400, {"ok": False, "error": "bad_request", "message": str(exc)})
             except Exception as exc:  # noqa: BLE001
-                print(f"[http]  unhandled error: {exc}", flush=True)
-                self._send_json(500, {"ok": False, "error": "internal_error", "message": str(exc)})
+                self._send_error(exc)
+
+        def do_POST(self) -> None:
+            # JSON form. The body MUST name the oracle contract; the container reads
+            # that contract's RPC URLs + quorum + minConfirmations and returns a
+            # report bound to it. block_number is optional (omit -> newest
+            # quorum-confirmed block). This is the explicit multi-chain entrypoint.
+            parsed = urlparse(self.path)
+            try:
+                if parsed.path != "/v1/header":
+                    self._send_json(404, {"ok": False, "error": "not_found"})
+                    return
+                if not limiter.allow():
+                    self._send_json(429, {"ok": False, "error": "rate_limited"})
+                    return
+
+                body = self._read_json_body()
+                raw_contract = body.get("oracle_contract") or body.get("config")
+                if not raw_contract:
+                    self._send_json(400, {
+                        "ok": False, "error": "missing_oracle_contract",
+                        "message": "JSON body must include 'oracle_contract' (0x address)",
+                    })
+                    return
+                if multi_service is None:
+                    self._send_json(501, {"ok": False, "error": "multi_chain_disabled"})
+                    return
+
+                config = Web3.to_checksum_address(str(raw_contract))
+                block_value = body.get("block_number")
+                if block_value is None:
+                    self._send_json(200, multi_service.get_latest_confirmed_report(config))
+                else:
+                    block_number = _parse_block_number(str(block_value))
+                    self._send_json(200, multi_service.get_header_report(config, block_number))
+            except Exception as exc:  # noqa: BLE001
+                self._send_error(exc)
 
         def do_OPTIONS(self) -> None:
             # CORS preflight. The API is public and read-only, so allow any origin
@@ -229,8 +259,32 @@ def _make_handler(
 
         def _send_cors_headers(self) -> None:
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "*")
+
+        def _send_error(self, exc: Exception) -> None:
+            if isinstance(exc, SourceRpcError):
+                self._send_json(exc.status_code, {"ok": False, "error": exc.error_code, "message": exc.message})
+            elif isinstance(exc, SignerMismatchError):
+                self._send_json(503, {"ok": False, "error": "signer_mismatch", "message": str(exc)})
+            elif isinstance(exc, ValueError):
+                self._send_json(400, {"ok": False, "error": "bad_request", "message": str(exc)})
+            else:
+                print(f"[http]  unhandled error: {exc}", flush=True)
+                self._send_json(500, {"ok": False, "error": "internal_error", "message": str(exc)})
+
+        def _read_json_body(self) -> dict[str, Any]:
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length > 0 else b""
+            if not raw:
+                return {}
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSON body: {exc}")
+            if not isinstance(data, dict):
+                raise ValueError("JSON body must be a JSON object")
+            return data
 
         def _send_json(self, status: int, payload: dict[str, Any]) -> None:
             body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
