@@ -5,16 +5,16 @@ source chain (Ethereum Sepolia) → mint a wrapped Crossroads token on Sapphire 
 it in an AMM → withdraw back out.** The signing committee is a single Sapphire
 confidential contract (no MPC). The EVM path is live on testnet.
 
-## Sub-projects
+## On-chain components
 
-- **[crossroads_oracle](crossroads_oracle)** — TEE block-hash oracle (ROFL app, Python) +
-  Sapphire contracts: `HeaderReportOracle` and the contract signing committee
-  `SapphireSigningCommittee`.
-- **[backend_contracts](backend_contracts)** — Crossroads asset/bridge contracts, debug-free
-  inclusion-proof tooling, the deposit/withdraw demo (`scripts/crossroads-evm`), and the
-  Uniswap-v2 mining AMM (`scripts/mining-amm`).
-- **[signing_committee](signing_committee)** — older off-chain NEAR-MPC committee. Superseded
-  by `SapphireSigningCommittee`; kept for reference, not used.
+All contracts live on Oasis Sapphire.
+
+- **[crossroads_oracle/contracts](crossroads_oracle/contracts)** — `HeaderReportOracle` (holds
+  TEE-signed source-chain block hashes) and `SapphireSigningCommittee` (the confidential
+  signing-committee contract).
+- **[backend_contracts](backend_contracts)** — the Crossroads asset/bridge contracts, the
+  debug-free inclusion-proof tooling, the deposit/withdraw demo (`scripts/crossroads-evm`), and
+  the Uniswap-v2 mining AMM (`scripts/mining-amm`).
 
 ## How it works
 
