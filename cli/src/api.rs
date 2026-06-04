@@ -68,6 +68,25 @@ impl ApiClient {
 
         response.json().await.map_err(ApiError::Http)
     }
+
+    pub async fn live_worker_status(
+        &self,
+        worker_id: &str,
+        worker_token: &str,
+    ) -> Result<LiveWorkerStatus, ApiError> {
+        let response = self
+            .http
+            .get(format!("{}/api/workers/{}/live", self.base_url, worker_id))
+            .bearer_auth(worker_token)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(ApiError::HttpStatus(response.status().as_u16()));
+        }
+
+        response.json().await.map_err(ApiError::Http)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -122,4 +141,49 @@ pub struct CreatePayoutIntentResponse {
     pub recipient_address: String,
     pub receive_pool_token: bool,
     pub status: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LiveWorkerStatus {
+    pub user_id: String,
+    pub worker_id: String,
+    pub worker_name: String,
+    pub display_name: String,
+    pub machine_label: Option<String>,
+    pub connected: bool,
+    pub connections: i64,
+    pub accepted_shares: i64,
+    pub rejected_shares: i64,
+    pub invalid_shares: i64,
+    pub total_hashes: i64,
+    pub last_share_timestamp_ms: Option<i64>,
+    pub hashrate_10s: Option<f64>,
+    pub hashrate_60s: Option<f64>,
+    pub hashrate_15m: Option<f64>,
+    pub observed_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub paper_share_points: i64,
+    pub accepted_share_credits: i64,
+    pub hash_credits: i64,
+    pub active_payout_intent: Option<ActivePayoutIntent>,
+    pub settlement: SettlementSummary,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActivePayoutIntent {
+    pub id: String,
+    pub target_chain: String,
+    pub target_token: String,
+    pub recipient_address: String,
+    pub receive_pool_token: bool,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SettlementSummary {
+    pub pending_count: i64,
+    pub submitted_count: i64,
+    pub confirmed_count: i64,
+    pub failed_count: i64,
+    pub pending_amount: i64,
 }

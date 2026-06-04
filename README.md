@@ -102,6 +102,21 @@ tail -f "$DRIP_HOME/xmrig.log"
 jq . "$DRIP_HOME/xmrig-config.json"
 ```
 
+`drip status` first reports the local miner process, then, if enrollment config
+exists, calls the backend live worker endpoint with the stored worker token and
+prints accepted/rejected/invalid shares, total hashes, paper-share credits,
+active payout intent, and placeholder settlement counts.
+
+Read live worker status directly:
+
+```bash
+curl -fsS "http://127.0.0.1:8081/api/workers/<worker_id>/live" \
+  -H "authorization: Bearer <worker_token>" | jq .
+```
+
+The live status endpoint is worker-token authenticated. Do not expose payout
+intent or recipient status through unauthenticated worker IDs.
+
 Read points:
 
 ```bash
@@ -380,17 +395,15 @@ production-finished.
 Owned here:
 
 ```text
-1. Verify the `Package drip` workflow on GitHub for macOS arm64 and Linux amd64.
-2. Add Linux static linking or document runtime library dependencies.
-3. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
-4. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
-5. Add macOS signing/notarization for drip and bundled XMRig.
-6. Add a backend status endpoint over live_worker_stats.
-7. Add SSE or WebSocket progress streaming over live_worker_stats.
-8. Add a settlement adapter implementation once contract/Crossroads signatures
+1. Add Linux static linking or document runtime library dependencies.
+2. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
+3. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
+4. Add macOS signing/notarization for drip and bundled XMRig.
+5. Add SSE or WebSocket progress streaming over live_worker_stats.
+6. Add a settlement adapter implementation once contract/Crossroads signatures
    are available.
-9. Package the ROFL deployment image and verify raw TCP Stratum ingress.
-10. Decide whether RandomX raw-share verification is required; it needs raw
+7. Package the ROFL deployment image and verify raw TCP Stratum ingress.
+8. Decide whether RandomX raw-share verification is required; it needs raw
    share capture, not just aggregate gate counters.
 ```
 

@@ -765,7 +765,10 @@ Recommended order:
 11. Run end-to-end faucet-component test:
     CLI payout intent -> mining -> PaperShare credit -> placeholder settlement.
 12. Run Alice/Bob local integration test through HashVault.
-13. Implement backend status endpoint over live_worker_stats.
+13. Implement backend status endpoint over live_worker_stats. DONE:
+    `GET /api/workers/{worker_id}/live` requires `Authorization: Bearer
+    <worker_token>` and returns live shares, hashes, paper-share totals, active
+    payout intent, and settlement summary.
 14. Implement realtime SSE over live_worker_stats.
 15. Package ROFL container with backend + proxy + Postgres.
 16. Deploy to ROFL large instance.
@@ -792,4 +795,6 @@ must use source-built binaries and keep GPL distribution obligations explicit.
 Linux release archives are pre-release until static linking or runtime library
 dependencies are explicitly verified.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
+Live worker status is token-authenticated; do not expose payout/recipient state
+through unauthenticated worker IDs.
 ```

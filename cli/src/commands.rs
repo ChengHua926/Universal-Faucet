@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use thiserror::Error;
 
 use crate::{
-    api::{ApiClient, ApiError, CreatePayoutIntentRequest},
+    api::{ApiClient, ApiError, CreatePayoutIntentRequest, LiveWorkerStatus},
     config::{
         default_config_path, default_log_path, default_pid_path, default_xmrig_config_path,
         load_config, save_config, ConfigError, StoredConfig,
@@ -111,7 +111,7 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
             xmrig_path,
         } => start(threads, xmrig_path).await,
         Commands::Pause | Commands::Stop => stop(),
-        Commands::Status => status(),
+        Commands::Status => status().await,
         Commands::Leaderboard => leaderboard(&cli.api_base_url).await,
     }
 }
@@ -305,10 +305,11 @@ fn stop() -> Result<(), CliError> {
     Ok(())
 }
 
-fn status() -> Result<(), CliError> {
+async fn status() -> Result<(), CliError> {
     let pid_path = default_pid_path()?;
     let Some(pid) = read_pid(&pid_path)? else {
         println!("miner stopped");
+        print_server_status_if_enrolled().await?;
         return Ok(());
     };
 
@@ -318,7 +319,85 @@ fn status() -> Result<(), CliError> {
         println!("miner stopped; stale pid {pid}");
     }
 
+    print_server_status_if_enrolled().await?;
+
     Ok(())
+}
+
+async fn print_server_status_if_enrolled() -> Result<(), CliError> {
+    let config = match load_config(&default_config_path()?) {
+        Ok(config) => config,
+        Err(ConfigError::Read { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(())
+        }
+        Err(error) => return Err(error.into()),
+    };
+
+    match ApiClient::new(&config.api_base_url)
+        .live_worker_status(&config.worker_id, &config.worker_token)
+        .await
+    {
+        Ok(status) => {
+            for line in render_live_worker_status(&status) {
+                println!("{line}");
+            }
+        }
+        Err(error) => {
+            println!("server status unavailable: {error}");
+        }
+    }
+
+    Ok(())
+}
+
+pub fn render_live_worker_status(status: &LiveWorkerStatus) -> Vec<String> {
+    let machine_label = status.machine_label.as_deref().unwrap_or("device");
+    let mut lines = vec![
+        format!("server connected {}", status.connected),
+        format!(
+            "worker {} ({} / {})",
+            status.worker_name, status.display_name, machine_label
+        ),
+        format!(
+            "shares accepted={} rejected={} invalid={}",
+            status.accepted_shares, status.rejected_shares, status.invalid_shares
+        ),
+        format!("hashes {}", status.total_hashes),
+        format!(
+            "hashrate 10s={} 60s={} 15m={}",
+            format_optional_hashrate(status.hashrate_10s),
+            format_optional_hashrate(status.hashrate_60s),
+            format_optional_hashrate(status.hashrate_15m)
+        ),
+        format!(
+            "paper-share points={} shares={} hashes={}",
+            status.paper_share_points, status.accepted_share_credits, status.hash_credits
+        ),
+    ];
+
+    if let Some(intent) = &status.active_payout_intent {
+        lines.push(format!(
+            "intent {} {} {} {}",
+            intent.target_chain, intent.target_token, intent.recipient_address, intent.status
+        ));
+    }
+
+    lines.push(format!(
+        "settlement pending={} submitted={} confirmed={} failed={} pending_amount={}",
+        status.settlement.pending_count,
+        status.settlement.submitted_count,
+        status.settlement.confirmed_count,
+        status.settlement.failed_count,
+        status.settlement.pending_amount
+    ));
+
+    lines
+}
+
+fn format_optional_hashrate(value: Option<f64>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "n/a".to_string())
 }
 
 fn read_pid(path: &Path) -> Result<Option<u32>, CliError> {
