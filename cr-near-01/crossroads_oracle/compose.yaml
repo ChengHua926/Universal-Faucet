@@ -1,7 +1,7 @@
 services:
   oracle:
     build: .
-    image: "ghcr.io/chenghua926/crossroads-oracle@sha256:161466f10b2b8bd11a7612f1d760afa63a6e4e1c783b784a624eea90a8c8a591"
+    image: "ghcr.io/chenghua926/crossroads-oracle@sha256:7c0b08d48ecf31c47e5de63ea4699df80c651b3211c91cd5ea8aaf8f9e44e286"
     platform: linux/amd64
     restart: on-failure
     ports:
@@ -20,7 +20,7 @@ services:
       # Deployed HeaderReportOracle (Model B), bound to IC3 app id 0x002339e3…
       ORACLE_CONTRACT_ADDRESS: "0x2e56383c7aCA466de0262A96f2b5e5ee3Fc26bC6"
       # 3 independent Sepolia RPCs; only sign a hash >= quorum of them recompute.
-      SOURCE_RPC_URLS: https://ethereum-sepolia-rpc.publicnode.com,https://sepolia.drpc.org,https://1rpc.io/sepolia
+      SOURCE_RPC_URLS: https://ethereum-sepolia-rpc.publicnode.com,https://sepolia.drpc.org,https://public.1rpc.io/sepolia
       SOURCE_RPC_QUORUM: "2"
       SOURCE_CONFIRMATIONS: "12"
       SOURCE_CHAIN_ID: "11155111"
