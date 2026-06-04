@@ -71,8 +71,12 @@ cargo run -p xpool-cli -- enroll --name alice --machine-label local1
 Create a faucet payout intent with the CLI:
 
 ```bash
-cargo run -p xpool-cli -- request base-sepolia eth 0x1111111111111111111111111111111111111111
+cargo run -p xpool-cli -- base-sepolia eth 0x1111111111111111111111111111111111111111
 ```
+
+`drip request <chain> <token> <recipient-address>` is kept as an explicit
+compatibility command, but the product-facing command is
+`drip <chain> <token> <recipient-address>`.
 
 Create a payout intent directly against the backend:
 
@@ -257,6 +261,8 @@ GET  /health
 POST /api/enroll
 POST /api/payout-intents
 GET  /api/leaderboard
+GET  /api/workers/{worker_id}/live
+GET  /api/workers/{worker_id}/live/events
 ```
 
 `/api/payout-intents` is the placeholder Crossroads/contract boundary. It stores

@@ -21,11 +21,14 @@ Current development CLI shape:
 
 ```text
 drip enroll --name alice --machine-label local1
-drip request base-sepolia eth 0x1111111111111111111111111111111111111111
+drip base-sepolia eth 0x1111111111111111111111111111111111111111
 drip start --threads 1
 drip status
 drip stop
 ```
+
+`drip request <chain> <token> <recipient-address>` remains available as an
+explicit compatibility command.
 
 The CLI starts managed/bundled XMRig on the user's machine. The user never
 manually installs or runs XMRig. Accepted RandomX mining work becomes internal

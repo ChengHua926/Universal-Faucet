@@ -35,8 +35,16 @@ pub struct Cli {
         global = true
     )]
     pub api_base_url: String,
+    #[arg(value_name = "CHAIN")]
+    pub chain: Option<String>,
+    #[arg(value_name = "TOKEN")]
+    pub token: Option<String>,
+    #[arg(value_name = "RECIPIENT_ADDRESS")]
+    pub recipient_address: Option<String>,
+    #[arg(long)]
+    pub receive_pool_token: bool,
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -88,31 +96,51 @@ pub enum CliError {
     NotRunning,
     #[error("failed to stop miner pid {pid}; signal command exited with {status}")]
     StopFailed { pid: u32, status: String },
+    #[error("usage: drip <chain> <token> <recipient-address> or drip <command>")]
+    Usage,
 }
 
 pub async fn run(cli: Cli) -> Result<(), CliError> {
-    match cli.command {
-        Commands::Enroll {
+    let Cli {
+        api_base_url,
+        chain,
+        token,
+        recipient_address,
+        receive_pool_token,
+        command,
+    } = cli;
+
+    match command {
+        Some(Commands::Enroll {
             name,
             machine_label,
-        } => enroll(&cli.api_base_url, &name, machine_label).await,
-        Commands::Request {
+        }) => enroll(&api_base_url, &name, machine_label).await,
+        Some(Commands::Request {
             chain,
             token,
             recipient_address,
             receive_pool_token,
-        } => request_payout_intent(&chain, &token, &recipient_address, receive_pool_token).await,
-        Commands::Start {
+        }) => request_payout_intent(&chain, &token, &recipient_address, receive_pool_token).await,
+        Some(Commands::Start {
             threads,
             xmrig_path,
-        } => start(threads, xmrig_path).await,
-        Commands::Resume {
+        }) => start(threads, xmrig_path).await,
+        Some(Commands::Resume {
             threads,
             xmrig_path,
-        } => start(threads, xmrig_path).await,
-        Commands::Pause | Commands::Stop => stop(),
-        Commands::Status => status().await,
-        Commands::Leaderboard => leaderboard(&cli.api_base_url).await,
+        }) => start(threads, xmrig_path).await,
+        Some(Commands::Pause | Commands::Stop) => stop(),
+        Some(Commands::Status) => status().await,
+        Some(Commands::Leaderboard) => leaderboard(&api_base_url).await,
+        None => {
+            let (Some(chain), Some(token), Some(recipient_address)) =
+                (chain, token, recipient_address)
+            else {
+                return Err(CliError::Usage);
+            };
+
+            request_payout_intent(&chain, &token, &recipient_address, receive_pool_token).await
+        }
     }
 }
 
