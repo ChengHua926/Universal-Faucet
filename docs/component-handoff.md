@@ -1,221 +1,146 @@
 # Universal Faucet Mining Component Handoff
 
-This is the fast handoff. Read this first, then drill into:
+Scope: `drip` CLI, managed XMRig, Stratum Gate, XMRig Proxy, backend
+accounting, Postgres ledger, and settlement placeholders.
+
+Out of scope here: PaperShare contract, Crossroads routing/swap/bridge, final
+token delivery.
+
+## Runtime
 
 ```text
-AGENTS.md                                  project guardrails
-README.md                                  local commands and packaging
-docs/mining-architecture.md                full architecture notes
-docs/crossroads-contract-integration.md    contract/Crossroads adapter contract
+user host
+  drip
+    -> writes payout intent
+    -> starts bundled XMRig
+    -> connects to gate :3333
+
+TEE / local Docker shape
+  gate :3333
+    -> validates worker token against Postgres
+    -> rewrites miner password for internal proxy
+    -> rejects duplicate/stale/unknown shares
+    -> forwards Stratum to xmrig-proxy :3334
+    -> exposes worker stats on :8082
+
+  xmrig-proxy :3334
+    -> internal only
+    -> upstream HashVault Monero pool over TLS
+
+  backend :8081
+    -> enroll
+    -> payout intent
+    -> status/live/SSE/leaderboard
+    -> collector loop
+    -> settlement request queue
+
+  postgres
+    -> users/workers/intents/snapshots/ledger/credits/settlements
 ```
 
-## What This Is
+Docker is only the local/CI process harness. It mirrors the TEE deployment
+boundary: public gate TCP, public backend HTTPS, private proxy/gate/backend/DB
+links, persistent Postgres volume.
 
-Universal Faucet lets a user spend CPU work instead of money to get testnet or
-small onchain assets.
+## Product Entry
 
-The user installs one CLI:
+```bash
+drip <chain> <token> <recipient-address>
+```
+
+Example:
 
 ```bash
 drip base-sepolia eth 0x1111111111111111111111111111111111111111
+```
+
+Current dev commands:
+
+```bash
+drip enroll --name alice --machine-label local1
+drip request base-sepolia eth 0x1111111111111111111111111111111111111111
 drip start --threads 1
 drip status
 drip stop
 ```
 
-The user does not install XMRig. The user does not run a Monero miner manually.
-The CLI owns XMRig configuration and process lifecycle.
+`drip <chain> <token> <address>` creates/updates the active payout intent.
+Mining starts only through explicit `drip start` or the combined path once wired.
 
-The mining component converts accepted RandomX work into internal PaperShare
-credit. Crossroads/contracts later convert that credit into the chain/token the
-user asked for.
-
-## The Product Boundary
-
-```text
-owned in this repo
-  drip CLI
-  managed XMRig packaging and lifecycle
-  Stratum Gate
-  XMRig Proxy integration
-  HashVault upstream mining-pool integration
-  backend API and collector
-  Postgres accounting ledger
-  PaperShare credit records
-  placeholder settlement queue
-
-owned by other teams
-  PaperShare / mining-pool-token contract
-  Crossroads swap and bridge routing
-  final token delivery on target chain
-```
-
-Do not turn this back into a Monero pool dashboard. Do not expose manual XMRig
-setup to users. Do not bypass the Stratum Gate for accounting.
-
-## System Shape
-
-```text
-user machine
-+-- drip
-    +-- enrolls against backend
-    +-- stores worker credentials in DRIP_HOME
-    +-- records payout intent: chain/token/address
-    +-- starts bundled XMRig
-        +-- Stratum TCP to gate :3333
-
-local Docker / future ROFL TEE
-+-- backend :8081
-|   +-- enrolls users/workers
-|   +-- stores payout intents
-|   +-- serves live status, SSE, leaderboard
-|   +-- polls gate stats
-|   +-- writes PaperShare credits and settlement requests
-|
-+-- xpool-gate :3333
-|   +-- validates worker_name + worker_token against Postgres
-|   +-- rejects duplicate shares globally
-|   +-- rejects stale shares except previous same-height jobs <= 1000ms
-|   +-- rewrites miner password to internal proxy password
-|   +-- forwards accepted submits to XMRig Proxy
-|   +-- exposes local stats API on :8082
-|
-+-- XMRig Proxy :3334
-|   +-- accepts only internal gate traffic
-|   +-- connects upstream to HashVault Monero pool
-|
-+-- Postgres
-    +-- users, workers
-    +-- live_worker_stats, worker_stat_snapshots
-    +-- point_ledger
-    +-- payout_intents
-    +-- paper_share_credits
-    +-- settlement_requests
-
-external
-+-- HashVault -> our XMR wallet/account -> treasury/redemption process
-+-- Crossroads/contracts -> final chain/token/address delivery
-```
-
-Docker is used as a local ROFL-shaped deployment harness: same long-running
-services, same private ports, same Postgres volume, same TCP Stratum path. It is
-not magic; it is a repeatable small VPS/TEE simulation.
-
-## First Principles
-
-Mining is not a task queue where users complete assigned jobs. Mining is a
-probabilistic hash search. Every RandomX hash is a lottery ticket.
-
-```text
-HashVault creates pool jobs from Monero nodes
-XMRig Proxy receives those jobs
-gate forwards jobs to user miners
-XMRig searches nonces locally
-shares prove work at low difficulty
-backend converts accepted share deltas into PaperShare credit
-```
-
-HashVault handles real Monero pool mechanics: node connectivity, block
-templates, upstream share validation, block submission, and pool payouts.
-
-We handle internal attribution: which Universal Faucet worker earned how much
-credit.
-
-## User Flow
-
-### Enroll
-
-```bash
-drip enroll --name alice --machine-label local1
-```
-
-Backend creates:
-
-```text
-users row
-workers row
-worker_name = unguessable backend-generated public key
-worker_token = secret returned once, stored hashed in DB
-```
-
-CLI stores:
+Local files:
 
 ```text
 $DRIP_HOME/config.json
+$DRIP_HOME/xmrig-config.json
+$DRIP_HOME/xmrig.pid
+$DRIP_HOME/xmrig.log
 ```
 
-### Request Asset
-
-```bash
-drip base-sepolia eth 0x1111111111111111111111111111111111111111
-```
-
-Backend creates:
+XMRig lookup order:
 
 ```text
-payout_intents row
-target_chain = base-sepolia
-target_token = eth
-recipient_address = 0x...
-receive_pool_token = false by default
-status = active
+--xmrig-path
+DRIP_XMRIG_PATH
+XPOOL_XMRIG_PATH
+release asset next to drip
+cli/third_party/xmrig/<platform>/
+PATH xmrig
 ```
 
-`drip request <chain> <token> <address>` still exists as an explicit
-compatibility command. The product shape is the direct command.
-
-### Mine
-
-```bash
-drip start --threads 1
-```
-
-CLI:
+## API
 
 ```text
-resolves bundled XMRig
-writes XMRig JSON config
-starts XMRig as a visible child process
-writes pid/log files
+GET  /health
+POST /api/enroll
+POST /api/payout-intents
+GET  /api/leaderboard
+GET  /api/workers/{worker_id}/live
+GET  /api/workers/{worker_id}/live/events
 ```
 
-XMRig connects to:
+Worker live endpoints require:
 
 ```text
-gate_host:3333
-user = worker_name
-pass = worker_token
-rig-id = worker_name
+Authorization: Bearer <worker_token>
 ```
 
-The gate authenticates that token and rewrites the password before forwarding
-to the internal XMRig Proxy. The user never sees the proxy password.
+Do not expose payout recipient/status via unauthenticated worker IDs.
 
-### Observe
+## Gate Contract
 
-```bash
-drip status
-curl -N -H "authorization: Bearer <worker_token>" \
-  "http://127.0.0.1:8081/api/workers/<worker_id>/live/events"
-```
+The gate is the accounting/security boundary. Do not account directly from stock
+XMRig Proxy counters.
 
-`drip status` reports:
+Implemented policy:
 
 ```text
-local miner process state
-accepted/rejected/invalid shares
-hashes and hashrate
-PaperShare credits
-active payout intent
-settlement summary
+worker_name + worker_token auth against Postgres
+shared upstream proxy password hidden from clients
+duplicate share rejected on same connection
+duplicate share rejected across connections
+duplicate nonce rejected even if result changes
+unknown job rejected
+previous same-height job allowed only <= 1000ms
+previous different-height job rejected
 ```
 
-SSE emits `worker.live` events with the same JSON shape as
-`GET /api/workers/{worker_id}/live`.
+Current limitation:
+
+```text
+accepted-share accounting follows the gate/proxy accepted response path
+raw RandomX share verification is not implemented yet
+sampled light-mode verification needs raw share capture first
+```
 
 ## Accounting
 
-The collector polls the gate stats API and computes deltas.
+Collector input:
+
+```text
+GET gate:8082/1/workers
+```
+
+Delta:
 
 ```text
 accepted_delta = current_accepted - previous_accepted
@@ -224,94 +149,127 @@ paper_share_amount = accepted_delta * PAPER_SHARE_DIFFICULTY
 default PAPER_SHARE_DIFFICULTY = 10000
 ```
 
-For each positive accepted-share delta:
+On positive delta:
 
 ```text
-worker_stat_snapshots  append raw observation
-live_worker_stats      upsert current worker view
-point_ledger           compatibility leaderboard ledger
-paper_share_credits    contract-facing credit
-settlement_requests    placeholder Crossroads/contract queue
+insert worker_stat_snapshots
+upsert live_worker_stats
+insert point_ledger
+insert paper_share_credits
+insert settlement_requests
 ```
 
-`point_ledger` is convenient UI/accounting history. `paper_share_credits` and
-`settlement_requests` are the integration boundary.
+HashVault pays our Monero wallet. User-facing value exits through PaperShare /
+Crossroads, not direct Monero payouts.
 
-## Placeholder Settlement
-
-The placeholder is intentional. It lets mining/accounting be built before the
-contract and Crossroads path is final.
-
-Current behavior:
+## Tables
 
 ```text
-active payout intent exists
-accepted mining work is credited
-backend creates paper_share_credits row
-backend creates settlement_requests row
-status = pending
-adapter = placeholder
+users
+  id
+  display_name
+
+workers
+  id
+  user_id
+  worker_name unique, backend-generated
+  token_hash
+  machine_label
+
+payout_intents
+  user_id
+  worker_id nullable
+  target_chain
+  target_token
+  recipient_address
+  receive_pool_token
+  status = active | paused | completed | cancelled
+
+worker_stat_snapshots
+  worker_id
+  accepted/rejected/invalid shares
+  total_hashes
+  hashrates
+  raw
+
+point_ledger
+  user_id
+  worker_id
+  points
+  accepted_share_delta
+  hash_delta
+
+paper_share_credits
+  user_id
+  worker_id
+  payout_intent_id
+  ledger_id
+  amount
+  status = pending_settlement | settled | failed | reversed
+
+settlement_requests
+  paper_share_credit_id
+  user_id
+  payout_intent_id
+  amount
+  target_chain
+  target_token
+  recipient_address
+  idempotency_key unique
+  adapter
+  status = pending | processing | submitted | confirmed | failed | replaced
+  tx_hash
+  error
+  claimed_by
+  claim_expires_at
 ```
 
-Future adapter behavior:
+## Settlement Adapter Boundary
+
+Backend currently stops at `settlement_requests.status = pending`.
+
+Adapter claim pattern:
+
+```sql
+BEGIN;
+SELECT *
+FROM settlement_requests
+WHERE status = 'pending'
+   OR (status = 'processing' AND claim_expires_at < now())
+ORDER BY created_at
+FOR UPDATE SKIP LOCKED
+LIMIT 1;
+
+UPDATE settlement_requests
+SET status = 'processing',
+    adapter = 'crossroads',
+    claimed_by = $adapter_id,
+    claim_expires_at = now() + interval '5 minutes'
+WHERE id = $id;
+COMMIT;
+```
+
+Adapter responsibilities:
 
 ```text
-claim pending settlement_requests row with SKIP LOCKED
-submit PaperShare/Crossroads transaction using idempotency_key
-set status = submitted with tx_hash
-set status = confirmed after finality
-set paper_share_credits.status = settled
+submit contract/Crossroads action with idempotency_key
+set submitted + tx_hash after broadcast
+set confirmed after finality
+set failed with error on terminal failure
+set paper_share_credits.status = settled only after confirmed
 ```
 
-The adapter must not mutate miner auth, worker stats, point deltas, or CLI
-state. It only consumes and updates settlement records.
+Detailed contract handoff: `docs/crossroads-contract-integration.md`.
 
-## Security And Abuse Boundary
-
-The gate exists because stock XMRig Proxy worker counters are not enough for
-production accounting.
-
-Gate-owned policy:
-
-```text
-worker token auth against Postgres
-duplicate share rejection on same connection
-duplicate share rejection across connections
-duplicate nonce rejection even if result changes
-unknown job rejection
-previous same-height job accepted only within 1000ms
-previous different-height job rejected
-```
-
-This does not yet mean we cryptographically verify every RandomX share
-ourselves. Raw-share capture and light-mode RandomX verification remain a
-separate decision. If credits must be independently auditable rather than
-trusted through gate/proxy accepted responses, add raw share capture first.
-
-## Local Development
-
-Create env:
+## Local Runbook
 
 ```bash
 cp .env.example .env
-```
+# set HASHVAULT_WALLET_ADDRESS
 
-Set:
-
-```text
-HASHVAULT_WALLET_ADDRESS=<our pool wallet/account>
-```
-
-Start infra:
-
-```bash
 docker compose -f infra/docker-compose.yml build backend xmrig-proxy
 docker compose -f infra/docker-compose.yml up -d postgres xmrig-proxy gate backend
-```
 
-Apply migrations:
-
-```bash
 docker compose -f infra/docker-compose.yml cp backend/migrations/0001_init.sql postgres:/tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0001_init.sql
 docker compose -f infra/docker-compose.yml cp backend/migrations/0002_payout_settlement.sql postgres:/tmp/0002_payout_settlement.sql
@@ -320,165 +278,97 @@ docker compose -f infra/docker-compose.yml cp backend/migrations/0003_settlement
 docker compose -f infra/docker-compose.yml exec -T postgres psql -U xpool -d xpool -f /tmp/0003_settlement_claims.sql
 ```
 
-Exercise the component:
+CLI smoke:
 
 ```bash
 export DRIP_HOME=/private/tmp/drip-demo
 export DRIP_API_BASE_URL=http://127.0.0.1:8081
 
 cargo run -p xpool-cli -- enroll --name alice --machine-label local1
-cargo run -p xpool-cli -- base-sepolia eth 0x1111111111111111111111111111111111111111
+cargo run -p xpool-cli -- request base-sepolia eth 0x1111111111111111111111111111111111111111
 cargo run -p xpool-cli -- start --threads 1
 cargo run -p xpool-cli -- status
 cargo run -p xpool-cli -- stop
 ```
 
-Inspect settlement handoff:
+Observe:
 
 ```bash
+curl http://127.0.0.1:8081/health
+curl http://127.0.0.1:8082/1/workers
+
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -U xpool -d xpool \
   -c 'SELECT amount, target_chain, target_token, recipient_address, status, adapter FROM settlement_requests ORDER BY created_at DESC LIMIT 10;'
 ```
 
-## Release Packaging
+## Packaging
 
-XMRig is source-built from official `xmrig/xmrig` `v6.26.0` at commit:
-
-```text
-b2ca72480c58d197e18c885d9fc1a0c8d517e60a
-```
-
-Donation is disabled by source patch:
+XMRig package source:
 
 ```text
-cli/third_party/xmrig/patches/disable-donation.patch
+repo:   xmrig/xmrig
+tag:    v6.26.0
+commit: b2ca72480c58d197e18c885d9fc1a0c8d517e60a
+patch:  cli/third_party/xmrig/patches/disable-donation.patch
 ```
 
-Artifacts include:
-
-```text
-drip
-third_party/xmrig/<platform>/xmrig
-third_party/xmrig/<platform>/SHA256SUMS
-third_party/xmrig/<platform>/BUILDINFO
-README.txt
-```
-
-CI workflows:
+Workflows:
 
 ```text
 .github/workflows/package-xmrig.yml
 .github/workflows/package-drip.yml
 ```
 
-Both workflows use Node 24-compatible GitHub Actions:
-
-```text
-actions/checkout@v6
-actions/upload-artifact@v6
-```
-
-Linux release hardening:
+Scripts:
 
 ```bash
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
+DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-drip.sh
 scripts/verify-linux-package.sh dist/drip-linux-amd64.tar.gz
-```
-
-The supported Linux target is currently clean `ubuntu:24.04` amd64. The
-package is dynamically linked and validated there. Static linking remains the
-path if we need wider distro compatibility.
-
-macOS release hardening:
-
-```bash
-DRIP_MACOS_CODESIGN_IDENTITY="Developer ID Application: <name> (<team>)" \
-DRIP_MACOS_NOTARY_KEYCHAIN_PROFILE=drip-notary \
 scripts/sign-notarize-macos.sh dist/drip-darwin-arm64.tar.gz
 ```
 
-The script signs `drip` and bundled XMRig, rewrites checksums, creates a
-notarization zip, and submits it when Apple notary credentials exist. A signed
-pkg can also be created and stapled when `DRIP_MACOS_INSTALLER_IDENTITY` is
-configured.
+Linux package is dynamically linked and validated in clean `ubuntu:24.04`.
+Static XMRig is optional future portability work.
 
-## Current Verification
+macOS signing/notarization is wired but requires Apple Developer secrets:
 
-Known green checks after the latest hardening:
+```text
+DRIP_MACOS_CODESIGN_IDENTITY
+DRIP_MACOS_NOTARY_KEYCHAIN_PROFILE
+or DRIP_MACOS_NOTARY_APPLE_ID / TEAM_ID / PASSWORD
+optional DRIP_MACOS_INSTALLER_IDENTITY
+```
+
+## Verified
 
 ```text
 cargo test --workspace
-scripts/verify-linux-package.sh <linux archive>
-scripts/sign-notarize-macos.sh <mac archive>  # skip path without credentials
-Package drip workflow
-Package XMRig workflow
+package-drip workflow: darwin-arm64, linux-amd64
+package-xmrig workflow: darwin-arm64, linux-amd64
+scripts/verify-linux-package.sh inside ubuntu:24.04
+scripts/sign-notarize-macos.sh skip path without Apple credentials
 ```
 
-Latest verified workflow classes:
+## Open Work
 
 ```text
-Package drip: builds macOS arm64 + Linux amd64 drip archives
-Package XMRig: builds macOS arm64 + Linux amd64 source-patched XMRig artifacts
+TEE
+  package ROFL image
+  verify raw TCP ingress on :3333
+  define Postgres persistence/backup policy
+
+integration
+  replace settlement placeholder with Crossroads/contract adapter
+  run production E2E:
+    drip -> gate -> proxy -> HashVault -> credit -> settlement_request
+
+accounting hardening
+  capture raw shares
+  add sampled light-mode RandomX verification if required
+
+release
+  configure Apple signing/notary secrets
+  decide Windows and Intel macOS support
 ```
-
-## TEE Readiness
-
-The local Docker setup is intentionally TEE-friendly:
-
-```text
-one backend service
-one gate service with raw TCP ingress
-one internal proxy service
-one Postgres service with persistent data
-private stats ports
-explicit env config
-no user-managed miner binaries on server
-```
-
-The deployment shape maps directly to ROFL:
-
-```text
-ROFL public ingress
-  :443   backend API
-  :3333  Stratum Gate TCP
-
-ROFL private services
-  backend -> Postgres
-  backend -> gate stats :8082
-  gate -> Postgres
-  gate -> XMRig Proxy :3334
-  XMRig Proxy -> HashVault :443 TLS
-```
-
-The main deployment unknown is not architecture. It is ROFL raw TCP ingress and
-operational persistence/backups for Postgres in the TEE environment.
-
-## What Is Still Left
-
-```text
-must do before production demo
-  package ROFL deployment image
-  verify raw TCP Stratum ingress on ROFL
-  run full production E2E: drip -> gate -> proxy -> HashVault -> credit -> settlement_request
-
-needed for real payouts
-  implement contract/Crossroads settlement adapter
-  configure treasury/redemption policy for upstream XMR income
-  set final PaperShare contract call semantics
-
-release polish
-  configure Apple Developer signing/notary secrets
-  decide whether Windows packaging matters
-  decide whether Intel macOS matters
-
-accounting hardening decision
-  decide whether sampled RandomX verification is required
-  if yes, add raw share capture before light-mode verifier
-```
-
-## One Sentence
-
-`drip` turns local CPU work into auditable PaperShare credit by running bundled
-XMRig through our authenticated Stratum Gate; the backend records the credit and
-hands settlement intent to Crossroads/contracts without coupling payout logic to
-miner accounting.
