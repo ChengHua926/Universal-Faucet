@@ -92,8 +92,3 @@ Live end-to-end (verified on testnet): **deposit→mint**, **contract-signed wit
 `MiningRewardToken` has a minter role: `setMinter(poolTee, true)`, then the pool's TEE calls
 `mint(miner, amount)` as it attests mining output. Rewards trade against Crossroads assets in
 the AMM.
-
-## Not done
-
-Other source chains (BTC/Solana), real mining backing for the token, production hardening
-(contract TODOs, audit, committee key recovery/attestation, mainnet).
