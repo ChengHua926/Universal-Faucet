@@ -1,30 +1,45 @@
-# Crossroads Workspace
+# Crossroads × Universal Faucet
 
-This repository is now organized as a workspace with two distinct sub-projects:
+A permissionless cross-chain asset bridge on Oasis Sapphire: **deposit an asset on a
+source chain (Ethereum Sepolia) → mint a wrapped Crossroads token on Sapphire → trade
+it in an AMM → withdraw back out.** The signing committee is a single Sapphire
+confidential contract (no MPC). The EVM path is live on testnet.
 
-- [signing_committee](/home/ubuntu/cr-near-01/signing_committee): the Rust NEAR MPC signing committee service, bootstrap contract, and Foundry-based committee e2e harness.
-- [backend_contracts](/home/ubuntu/cr-near-01/backend_contracts): the Hardhat project for the Ethereum-facing asset contracts, inclusion-proof tooling, and backend-oriented e2e tests.
+**Full run flow + deployed addresses → [REPORT.md](REPORT.md).**
 
-## Network split
+## Sub-projects
 
-The two test environments serve different purposes:
+- **[crossroads_oracle](crossroads_oracle)** — the TEE block-hash oracle (ROFL app, Python)
+  and its Sapphire contracts: `HeaderReportOracle` and the contract-based signing committee
+  `SapphireSigningCommittee`.
+- **[backend_contracts](backend_contracts)** — the Crossroads asset/bridge contracts, the
+  debug-free inclusion-proof tooling, the deposit/withdraw demo scripts, and the Uniswap-v2
+  mining AMM (`scripts/crossroads-evm`, `scripts/mining-amm`).
+- **[signing_committee](signing_committee)** — the older off-chain NEAR-MPC committee.
+  Superseded by `SapphireSigningCommittee`; kept for reference, not used.
 
-- The asset contracts themselves can be deployed on a local anvil chain.
-- Kurtosis is required when the backend contract suite needs a devnet version of the Ethereum integrated chain, because the proof-building flow depends on `debug_getRawBlock` to assemble Merkle transaction inclusion proofs.
+## How it works
 
-That means Kurtosis is for the integrated proof source chain, not for the local asset-contract deployment chain.
+1. A real tx on the source chain (Sepolia) → the TEE oracle recomputes & signs that block's
+   hash in-enclave → it's relayed on Sapphire (`submitSignedHeader`).
+2. The client builds a tx-inclusion proof from a plain `eth_getBlockByNumber` — no
+   `debug_getRawBlock`, so any RPC works (self-checked against the header).
+3. `asset.deposit(signedTx, proof)` verifies inclusion + the oracle's block hash, then mints.
+4. To withdraw: lock the token → `SapphireSigningCommittee.sign` signs a source-chain tx in a
+   confidential `eth_call` (gated by the asset's `canSign`) → broadcast → `finalizeWithdrawal`.
 
-## Common commands
+The mining AMM lets the Universal Faucet mining token (`MiningRewardToken`, minter-role —
+the mining pool's TEE plugs in as the minter) trade against Crossroads assets.
 
-From the repository root:
+## Quick start
 
-```bash
-make committee-build
-make committee-test
-make committee-e2e
+See [REPORT.md](REPORT.md) for the ordered run flow. Free offline checks:
 
-make contracts-install
-make contracts-test
+```sh
+cd backend_contracts
+node scripts/crossroads-evm/dev/validate-proof-rpc.mjs   # proof builder vs live Sepolia
+npx hardhat test test/asset-accounting.ts                # asset accounting
 ```
 
-For Kurtosis-backed backend tests, Solana local-validator tests, and real signing committee E2E scripts, see [backend_contracts/README.md](/home/ubuntu/cr-near-01/backend_contracts/README.md). For the Rust committee service and Foundry harness, see [signing_committee/README.md](/home/ubuntu/cr-near-01/signing_committee/README.md).
+Tooling: Node ≥22.10 (Hardhat 3); Foundry for the local committee harness; Docker/Kurtosis
+only for the legacy MPC e2e in `signing_committee`.
