@@ -803,6 +803,9 @@ XMRig packages write `BUILDINFO` with source commit, donation patch status, and
 `ldd`/`otool` runtime dependency output. Linux release archives are pre-release
 until those dependencies are validated on a clean supported distro or the miner
 is switched to static linking.
+Current linux-amd64 CI output links dynamically to OpenSSL 3 and glibc-family
+system libraries: `libssl.so.3`, `libcrypto.so.3`, `libm.so.6`, `libc.so.6`,
+and `/lib64/ld-linux-x86-64.so.2`.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 Live worker status is token-authenticated; do not expose payout/recipient state
 through unauthenticated worker IDs.

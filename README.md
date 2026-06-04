@@ -220,6 +220,10 @@ for macOS arm64 and Linux amd64. Linux archives remain pre-release until the
 captured `BUILDINFO` runtime dependencies are validated on a clean supported
 distro or the miner is switched to static linking.
 
+Current linux-amd64 CI `BUILDINFO` shows dynamic links to `libssl.so.3`,
+`libcrypto.so.3`, `libm.so.6`, `libc.so.6`, and
+`/lib64/ld-linux-x86-64.so.2`.
+
 ## Backend And Proxy
 
 Create local env:
