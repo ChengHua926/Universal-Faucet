@@ -1,0 +1,46 @@
+name: Package XMRig
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runner: ubuntu-24.04
+          - platform: darwin-arm64
+            runner: macos-14
+          - platform: darwin-amd64
+            runner: macos-13
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git libuv1-dev libssl-dev
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake libuv openssl@3
+
+      - name: Build source-patched XMRig
+        env:
+          DRIP_XMRIG_PLATFORM: ${{ matrix.platform }}
+        run: scripts/package-xmrig.sh
+
+      - name: Upload packaged XMRig
+        uses: actions/upload-artifact@v4
+        with:
+          name: xmrig-${{ matrix.platform }}
+          path: |
+            cli/third_party/xmrig/${{ matrix.platform }}/xmrig
+            cli/third_party/xmrig/${{ matrix.platform }}/SHA256SUMS
