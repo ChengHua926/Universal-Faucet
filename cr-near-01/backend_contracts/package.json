@@ -31,6 +31,8 @@
     "@types/chai-as-promised": "^8.0.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.3",
+    "@uniswap/v2-core": "^1.0.1",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "chai": "^5.3.3",
     "ethers": "^6.16.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
@@ -46,8 +48,8 @@
     "@ethereumjs/trie": "^6.2.1",
     "@oasisprotocol/sapphire-ethers-v6": "^6.0.1",
     "@openzeppelin/contracts": "^5.4.0",
-    "solidity-rlp": "^2.0.8",
     "@solana/web3.js": "^1.98.0",
-    "bs58": "^6.0.0"
+    "bs58": "^6.0.0",
+    "solidity-rlp": "^2.0.8"
   }
 }

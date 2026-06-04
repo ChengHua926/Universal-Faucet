@@ -1,0 +1,26 @@
+{
+  "network": {
+    "name": "sapphireTestnet",
+    "chainId": "23295"
+  },
+  "deployer": "0xB0BC5fE8E1F177eB663237094061932705233fCB",
+  "wrose": "0xd828DC37807236f82b42e6378DddbC224c2956D2",
+  "factory": "0x39924Df94Cc639654DdCF74ededCA428Ca285582",
+  "router": "0x94Aa01382f7c64F98D591Af04A179A76fED5da69",
+  "miningToken": {
+    "address": "0xDAbaB98ea957bCa3D4d0B7C3F2f775Bb6537BA0d",
+    "symbol": "UFM"
+  },
+  "pools": [
+    {
+      "symbol": "dcrETH",
+      "token": "0xB4737F97D8088622D37EdA1f021e5EEd2e8dA4c5",
+      "pair": "0x47573153179F9948f0D0DF664dAB813F017A987b"
+    },
+    {
+      "symbol": "dcrUSDC",
+      "token": "0xE127Ccb29E21B103d31dFC15D5F036F6EfBEA4f1",
+      "pair": "0x1f47b65690077Ea06aA3156F29b6202A4F7950Dc"
+    }
+  ]
+}
