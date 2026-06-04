@@ -42,3 +42,4 @@ jobs:
           path: |
             cli/third_party/xmrig/${{ matrix.platform }}/xmrig
             cli/third_party/xmrig/${{ matrix.platform }}/SHA256SUMS
+            cli/third_party/xmrig/${{ matrix.platform }}/BUILDINFO
