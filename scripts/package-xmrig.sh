@@ -22,6 +22,46 @@ detect_platform() {
   esac
 }
 
+write_buildinfo() {
+  local binary_path="$1"
+  local output_path="$2"
+
+  {
+    echo "component=xmrig"
+    echo "source=https://github.com/xmrig/xmrig"
+    echo "version=$XMRIG_VERSION"
+    echo "commit=$actual_commit"
+    echo "platform=$PLATFORM"
+    echo "executable=$EXE_NAME"
+    echo "donation_disabled=true"
+    echo "donation_patch=cli/third_party/xmrig/patches/disable-donation.patch"
+    echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "checksum_file=SHA256SUMS"
+    echo
+    echo "[runtime_dependencies]"
+
+    case "$PLATFORM" in
+      linux-*)
+        if command -v ldd >/dev/null 2>&1; then
+          ldd "$binary_path"
+        else
+          echo "ldd unavailable"
+        fi
+        ;;
+      darwin-*)
+        if command -v otool >/dev/null 2>&1; then
+          otool -L "$binary_path"
+        else
+          echo "otool unavailable"
+        fi
+        ;;
+      windows-*)
+        echo "not captured by this script"
+        ;;
+    esac
+  } > "$output_path"
+}
+
 PLATFORM="${DRIP_XMRIG_PLATFORM:-$(detect_platform)}"
 case "$PLATFORM" in
   darwin-arm64 | darwin-amd64 | linux-amd64) EXE_NAME="xmrig" ;;
@@ -82,5 +122,8 @@ else
   (cd "$target_dir" && sha256sum "$EXE_NAME" > SHA256SUMS)
 fi
 
+write_buildinfo "$target_dir/$EXE_NAME" "$target_dir/BUILDINFO"
+
 "$target_dir/$EXE_NAME" --version
 cat "$target_dir/SHA256SUMS"
+cat "$target_dir/BUILDINFO"

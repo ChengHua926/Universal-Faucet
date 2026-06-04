@@ -181,7 +181,9 @@ DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
 The script clones official `xmrig/xmrig` source at `v6.26.0`, verifies the
 expected commit, applies `cli/third_party/xmrig/patches/disable-donation.patch`,
 builds the miner, installs it into `cli/third_party/xmrig/<platform>/`, and
-writes `SHA256SUMS`.
+writes `SHA256SUMS` and `BUILDINFO`. `BUILDINFO` records source provenance,
+donation patch status, and platform runtime dependency output from `ldd` or
+`otool`.
 
 The XMRig packaging workflow currently produces macOS arm64 and Linux amd64
 artifacts. macOS amd64 remains script-supported but is not CI-required because
@@ -209,12 +211,14 @@ Each archive contains:
 drip
 third_party/xmrig/<platform>/xmrig
 third_party/xmrig/<platform>/SHA256SUMS
+third_party/xmrig/<platform>/BUILDINFO
 README.txt
 ```
 
 The `Package drip` workflow builds the XMRig binary and the matching CLI archive
-for macOS arm64 and Linux amd64. Linux archives are pre-release until static
-linking or a documented runtime dependency policy is verified.
+for macOS arm64 and Linux amd64. Linux archives remain pre-release until the
+captured `BUILDINFO` runtime dependencies are validated on a clean supported
+distro or the miner is switched to static linking.
 
 ## Backend And Proxy
 
@@ -410,7 +414,8 @@ production-finished.
 Owned here:
 
 ```text
-1. Add Linux static linking or document runtime library dependencies.
+1. Validate Linux runtime dependencies on a clean supported distro or switch to
+   static linking.
 2. Finish windows-amd64 XMRig and drip packaging with a native dependency path.
 3. Re-enable macOS amd64 only if Intel Mac support becomes worth the CI wait.
 4. Add macOS signing/notarization for drip and bundled XMRig.

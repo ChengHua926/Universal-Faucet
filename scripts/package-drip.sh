@@ -45,6 +45,15 @@ mkdir -p "$PACKAGE_DIR/third_party/xmrig/$PLATFORM"
 install -m 755 "$DRIP_BIN" "$PACKAGE_DIR/$DRIP_EXE"
 install -m 755 "$XMRIG_BIN" "$PACKAGE_DIR/third_party/xmrig/$PLATFORM/$XMRIG_EXE"
 install -m 644 "$XMRIG_DIR/SHA256SUMS" "$PACKAGE_DIR/third_party/xmrig/$PLATFORM/SHA256SUMS"
+if [[ -f "$XMRIG_DIR/BUILDINFO" ]]; then
+  install -m 644 "$XMRIG_DIR/BUILDINFO" "$PACKAGE_DIR/third_party/xmrig/$PLATFORM/BUILDINFO"
+else
+  {
+    echo "component=xmrig"
+    echo "platform=$PLATFORM"
+    echo "warning=BUILDINFO missing; rerun scripts/package-xmrig.sh before release"
+  } > "$PACKAGE_DIR/third_party/xmrig/$PLATFORM/BUILDINFO"
+fi
 
 cat > "$PACKAGE_DIR/README.txt" <<EOF
 drip universal proof-of-work faucet CLI
@@ -58,6 +67,9 @@ Run:
 
 This archive bundles source-patched XMRig for $PLATFORM at:
   third_party/xmrig/$PLATFORM/$XMRIG_EXE
+
+Build provenance and runtime dependency metadata:
+  third_party/xmrig/$PLATFORM/BUILDINFO
 
 Users should not install or run XMRig manually.
 EOF

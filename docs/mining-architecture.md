@@ -799,8 +799,10 @@ from `xmrig/xmrig` v6.26.0 commit `b2ca72480c58d197e18c885d9fc1a0c8d517e60a`
 with `patches/disable-donation.patch`.
 Official prebuilt XMRig keeps the default donation behavior; production drip
 must use source-built binaries and keep GPL distribution obligations explicit.
-Linux release archives are pre-release until static linking or runtime library
-dependencies are explicitly verified.
+XMRig packages write `BUILDINFO` with source commit, donation patch status, and
+`ldd`/`otool` runtime dependency output. Linux release archives are pre-release
+until those dependencies are validated on a clean supported distro or the miner
+is switched to static linking.
 Contract/Crossroads settlement is a placeholder adapter in this repo.
 Live worker status is token-authenticated; do not expose payout/recipient state
 through unauthenticated worker IDs.

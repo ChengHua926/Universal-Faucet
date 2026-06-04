@@ -24,7 +24,7 @@ DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-xmrig.sh
 The build script clones the official `xmrig/xmrig` source at `v6.26.0`, checks
 the expected release commit, applies the donation-disable patch, builds from
 source, installs the binary into the matching platform directory, and writes a
-`SHA256SUMS` file.
+`SHA256SUMS` file plus a `BUILDINFO` provenance/runtime dependency manifest.
 
 Local E2E verification on macOS arm64:
 
@@ -62,6 +62,7 @@ into a release archive:
 drip
 third_party/xmrig/<platform>/xmrig
 third_party/xmrig/<platform>/SHA256SUMS
+third_party/xmrig/<platform>/BUILDINFO
 README.txt
 ```
 
@@ -69,6 +70,7 @@ Before production release:
 
 - run the packaging workflows for every supported platform
 - verify and record checksums from each produced `SHA256SUMS`
-- make Linux packaging static or document runtime library dependencies
+- validate Linux `BUILDINFO` runtime dependencies on a clean supported distro or
+  make Linux packaging static
 - handle macOS signing/notarization
 - keep GPL distribution obligations explicit
