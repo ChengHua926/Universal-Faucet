@@ -66,7 +66,7 @@ or boot-time persistence.
 Primary docs:
 
 ```text
-docs/cli-only-scope.md
+docs/handoff.md
 docs/cli-ux.md
 ```
 

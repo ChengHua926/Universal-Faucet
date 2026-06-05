@@ -55,6 +55,8 @@ Useful local env:
 export DRIP_HOME=/private/tmp/drip-demo
 export DRIP_API_BASE_URL=http://127.0.0.1:8081
 export DRIP_POOL_URL=127.0.0.1:3333
+export DRIP_POOL_TLS=false
+# export DRIP_XMRIG_PATH=/absolute/path/to/xmrig
 ```
 
 Local files:
@@ -125,7 +127,7 @@ Stored voucher shape:
 
 ## Docs
 
-Read [docs/cli-only-scope.md](docs/cli-only-scope.md) for the current handoff.
+Read [docs/handoff.md](docs/handoff.md) for the current handoff.
 Read [docs/cli-ux.md](docs/cli-ux.md) for CLI UX rules and demo generation.
 
 ## Verification

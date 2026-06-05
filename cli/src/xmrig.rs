@@ -75,10 +75,6 @@ pub fn resolve_xmrig_path(explicit: Option<&Path>) -> PathBuf {
         return PathBuf::from(path);
     }
 
-    if let Ok(path) = env::var("XPOOL_XMRIG_PATH") {
-        return PathBuf::from(path);
-    }
-
     if let Some(path) = bundled_xmrig_path() {
         return path;
     }

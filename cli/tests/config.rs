@@ -36,7 +36,6 @@ fn saves_and_loads_cli_only_profile() {
 fn drip_home_controls_local_paths() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
     std::env::set_var("DRIP_HOME", temp_dir.path());
-    std::env::remove_var("XPOOL_HOME");
 
     assert_eq!(
         default_config_path().expect("config path"),

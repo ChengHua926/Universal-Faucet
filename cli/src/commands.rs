@@ -33,7 +33,7 @@ const GRACEFUL_STOP_WAIT_ATTEMPTS: usize = 150;
 #[command(name = "drip")]
 #[command(about = "Run local proof-of-work for faucet credit")]
 #[command(
-    after_help = "Examples:\n  drip start --threads 2\n  drip status\n  drip checkpoint\n  drip withdraw base-sepolia eth 0x1111111111111111111111111111111111111111\n\nEnvironment:\n  DRIP_API_BASE_URL  Pool backend HTTP API\n  DRIP_POOL_URL      Stratum mining pool URL\n  DRIP_HOME          Local profile/log/voucher directory"
+    after_help = "Examples:\n  drip start --threads 2\n  drip status\n  drip checkpoint\n  drip withdraw base-sepolia eth 0x1111111111111111111111111111111111111111\n\nEnvironment:\n  DRIP_API_BASE_URL  Pool backend HTTP API\n  DRIP_POOL_URL      Stratum mining pool URL\n  DRIP_POOL_TLS      Use TLS for Stratum mining pool\n  DRIP_XMRIG_PATH    Optional XMRig binary override\n  DRIP_HOME          Local profile/log/voucher directory"
 )]
 pub struct Cli {
     #[arg(
