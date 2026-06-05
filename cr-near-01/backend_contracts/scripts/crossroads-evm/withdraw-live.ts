@@ -1,10 +1,15 @@
-// Full live withdrawal: deposit to the encumbered address the SapphireSigningCommittee
+// Full live withdrawal: deposit to the encumbered address the SigningCommittee
 // contract controls, lock the minted crsETH, have the committee sign the withdrawal
 // in a single confidential eth_call, broadcast on Sepolia, and finalize against the
 // TEE oracle. The signer is a Sapphire contract — no MPC, no nodes, no DKG.
 //
+// Committee = James's EIP-712 `SigningCommittee`: the spender authorizes the
+// request with an EIP-712 `SignRequest` typed signature, and `sign(...)` returns
+// the raw Sapphire ASN.1 DER signature (not r||s||v), which we split + recover v
+// against the derived signer here on the client.
+//
 //   SAPPHIRE_PRIVATE_KEY / SEPOLIA_PRIVATE_KEY / CROSSROADS_ORACLE_API in env,
-//   [COMMITTEE_ADDRESS=0x...] (default: the deployed SapphireSigningCommittee)
+//   COMMITTEE_ADDRESS=0x... (deploy one with scripts/deploy-committee.js)
 //     npx hardhat run scripts/crossroads-evm/withdraw-live.ts --network sapphireTestnet
 
 import { readFile } from "node:fs/promises";
@@ -24,13 +29,53 @@ import {
   waitForTeeReport,
 } from "./lib.js";
 
-const DEFAULT_COMMITTEE = "0xDa3dFdEa5C52C56c3F667e00Df90eCEaA7faDEf5";
+const ALG = 1; // ALG_SECP256K1_KECCAK256
 
 const COMMITTEE_ABI = [
-  "function encumberedAccount(address asset, bytes32 accountId) view returns (address addr, bytes32 encAccount)",
-  "function requestHash(address asset, bytes32 accountId, bytes message) view returns (bytes32)",
-  "function sign(address asset, bytes32 accountId, bytes message, bytes spenderSig) view returns (address encAddr, bytes32 r, bytes32 s, uint8 v)",
+  "function signerAddress(address asset, bytes32 encAccount, uint256 algId) view returns (address)",
+  "function assetAccount(address asset, bytes32 encAccount, uint256 algId) view returns (address signer, bytes32 assetEncId)",
+  "function sign(address asset, bytes32 encAccount, uint256 algId, bytes txData, bytes requesterSig) view returns (bytes)",
 ];
+
+// EIP-712 typed request the committee authorizes against (domain bound to the
+// committee's chain + address).
+const SIGN_REQUEST_TYPES = {
+  SignRequest: [
+    { name: "asset", type: "address" },
+    { name: "encAccount", type: "bytes32" },
+    { name: "txData", type: "bytes" },
+  ],
+};
+
+// Split Sapphire's ASN.1 DER secp256k1 signature into (r,s) and recover v by
+// matching the derived signer over `digest`.
+function pad32(bytes: Uint8Array): string {
+  let x = bytes;
+  while (x.length > 32 && x[0] === 0x00) x = x.slice(1); // strip DER sign byte
+  const out = new Uint8Array(32);
+  out.set(x, 32 - x.length);
+  return ethersLib.hexlify(out);
+}
+function derToRSV(derHex: string, digest: string, signer: string) {
+  const d = ethersLib.getBytes(derHex);
+  if (d[0] !== 0x30) throw new Error("not a DER sequence");
+  let i = 2;
+  if (d[i] !== 0x02) throw new Error("DER: expected r");
+  const rlen = d[i + 1];
+  i += 2;
+  const r = pad32(d.slice(i, i + rlen));
+  i += rlen;
+  if (d[i] !== 0x02) throw new Error("DER: expected s");
+  const slen = d[i + 1];
+  i += 2;
+  const s = pad32(d.slice(i, i + slen));
+  for (const v of [27, 28]) {
+    if (ethersLib.recoverAddress(digest, { r, s, v }).toLowerCase() === signer.toLowerCase()) {
+      return { r, s, v };
+    }
+  }
+  throw new Error("could not recover v against the derived signer");
+}
 
 const ASSET_ABI = [
   "function deposit(bytes signedTx, bytes proof)",
@@ -76,7 +121,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const net = await ethers.provider.getNetwork();
   const apiUrl = process.env.CROSSROADS_ORACLE_API ?? DEFAULT_ORACLE_API;
-  const committeeAddr = ethersLib.getAddress(process.env.COMMITTEE_ADDRESS ?? DEFAULT_COMMITTEE);
+  const committeeAddr = ethersLib.getAddress(need("COMMITTEE_ADDRESS"));
 
   const deployment = JSON.parse(
     await readFile(
@@ -106,7 +151,9 @@ async function main() {
   console.log(`Spender: ${spender.address}\n`);
 
   // --- 1. ask the committee for the encumbered account it controls ----------
-  const [encAddress, encId] = await committee.encumberedAccount(assetAddr, accountId);
+  // encId is the asset-facing id (bytes32(uint160(signer))); accountId is the
+  // derivation label.
+  const [encAddress, encId] = await committee.assetAccount(assetAddr, accountId, ALG);
   console.log(`[1/8] committee-derived encumbered: ${encAddress}`);
   if (!(await asset.isEncumberedAccount(encId))) {
     await (await asset.registerEncumberedAccount(encId)).wait();
@@ -162,12 +209,23 @@ async function main() {
   console.log(`[5/8] Unsigned withdrawal: nonce=${epoch}, amount=${ethersLib.formatEther(withdrawWei)} ETH`);
 
   // --- 6. SAPPHIRE COMMITTEE signs it (confidential eth_call) ----------------
-  const reqHash = await committee.requestHash(assetAddr, accountId, message);
-  const spenderSig = await spender.signMessage(ethersLib.getBytes(reqHash));
-  const [signedBy, r, s, v] = await committee.sign(assetAddr, accountId, message, spenderSig);
-  console.log(`[6/8] Sapphire committee signed; signer=${signedBy} v=${v}`);
-  if (signedBy.toLowerCase() !== encAddress.toLowerCase()) throw new Error("committee signed for the wrong address");
-  unsignedTx.signature = ethersLib.Signature.from({ r, s, v: Number(v) });
+  // The spender authorizes the request with an EIP-712 SignRequest; the domain
+  // binds the committee's chain (Sapphire) + address. sign() returns raw DER.
+  const domain = {
+    name: "SigningCommittee",
+    version: "1",
+    chainId: net.chainId,
+    verifyingContract: committeeAddr,
+  };
+  const reqSig = await spender.signTypedData(domain, SIGN_REQUEST_TYPES, {
+    asset: assetAddr,
+    encAccount: accountId,
+    txData: message,
+  });
+  const der = await committee.sign(assetAddr, accountId, ALG, message, reqSig);
+  const { r, s, v } = derToRSV(der, ethersLib.keccak256(message), encAddress);
+  console.log(`[6/8] Sapphire committee signed (DER ${der.slice(0, 12)}…); v=${v}`);
+  unsignedTx.signature = ethersLib.Signature.from({ r, s, v });
   const signedWithdrawal = unsignedTx.serialized;
 
   // --- 7. broadcast on Sepolia, confirm, oracle report ----------------------

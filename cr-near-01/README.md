@@ -10,7 +10,7 @@ confidential contract (no MPC). The EVM path is live on testnet.
 All contracts live on Oasis Sapphire.
 
 - **[crossroads_oracle/contracts](crossroads_oracle/contracts)** — `HeaderReportOracle` (holds
-  TEE-signed source-chain block hashes) and `SapphireSigningCommittee` (the confidential
+  TEE-signed source-chain block hashes) and `SigningCommittee` (the confidential EIP-712
   signing-committee contract).
 - **[backend_contracts](backend_contracts)** — the Crossroads asset/bridge contracts, the
   debug-free inclusion-proof tooling, the deposit/withdraw demo (`scripts/crossroads-evm`), and
@@ -23,8 +23,9 @@ All contracts live on Oasis Sapphire.
 2. The client builds a tx-inclusion proof from a plain `eth_getBlockByNumber` — no
    `debug_getRawBlock`, so any RPC works (self-checked against the header).
 3. `asset.deposit(signedTx, proof)` verifies inclusion + the oracle's block hash, then mints.
-4. Withdraw: lock the token → `SapphireSigningCommittee.sign` signs a source-chain tx in a
-   confidential `eth_call` (gated by the asset's `canSign`) → broadcast → `finalizeWithdrawal`.
+4. Withdraw: lock the token → the spender authorizes an EIP-712 `SignRequest` → `SigningCommittee.sign`
+   signs a source-chain tx in a confidential `eth_call` (gated by the asset's `canSign`), returning the
+   raw Sapphire DER signature (the client splits it + recovers `v`) → broadcast → `finalizeWithdrawal`.
 
 The mining AMM lets the mining token (`MiningRewardToken`, minter-role) trade against
 Crossroads assets.
@@ -47,9 +48,9 @@ SOURCE_CHAIN_ID=11155111 MIN_CONFIRMATIONS=3 SOURCE_RPC_QUORUM=2 \
 SOURCE_RPC_URLS=https://ethereum-sepolia-rpc.publicnode.com,https://sepolia.drpc.org,https://public.1rpc.io/sepolia \
   npx hardhat run scripts/deploy-header-oracle.js --network sapphire-testnet   # → oracle address
 
-# 2. Signing committee (the Sapphire contract); deploys + self-tests.
+# 2. Signing committee (the Sapphire contract). bytes32(0) seed => enclave-generated root (no backdoor).
 PRIVATE_KEY=$SAPPHIRE_PRIVATE_KEY \
-  npx hardhat run scripts/test-sapphire-committee.js --network sapphire-testnet # → committee address
+  npx hardhat run scripts/deploy-committee.js --network sapphire-testnet # → committee address
 ```
 
 **In `backend_contracts`**
@@ -66,7 +67,7 @@ npx hardhat run scripts/mining-amm/deploy-amm.ts --network sapphireTestnet
 
 ## Deployed (Sapphire testnet, chainId 23295)
 
-- **Signing committee:** `0xDa3dFdEa5C52C56c3F667e00Df90eCEaA7faDEf5`
+- **Signing committee (`SigningCommittee`, EIP-712):** `0x86de215fEfB0eA85c0F7c771d7091B2003eA4237`
 - **3-conf stack:** oracle `0x3045628524530CB056D74Eacd2C4F0b0A6Bf4388`, asset crsETH `0x52B56eEFE06B54f9cf323310Bf3CDa5bfecD87a3`
 - **12-conf stack:** oracle `0xa852946E2FfEb92FB8f06a8272cCE5323eCFE133`, asset crsETH `0x22d3Fb59c21940645E4c212316f33c898402eAF5`
 - **AMM:** Factory `0x39924Df94Cc639654DdCF74ededCA428Ca285582`, Router `0x94Aa01382f7c64F98D591Af04A179A76fED5da69`
@@ -81,11 +82,17 @@ node scripts/crossroads-evm/dev/validate-proof-rpc.mjs   # debug-free proof vs l
 node scripts/crossroads-evm/dev/validate-submit.mjs      # report digest/sig vs the saved fixture
 npx hardhat test test/asset-accounting.ts                # asset accounting (5 tests)
 ```
-On-chain isolation test of the committee: `crossroads_oracle/contracts/scripts/test-sapphire-committee.js`
-(deterministic derivation, signature recovers to the derived address, `canSign` gating).
+On-chain isolation test of the committee: `crossroads_oracle/contracts/scripts/test-signing-committee.js`
+(5 checks: deterministic derivation, the on-chain EIP-712 digest matches the client's typed-data hash and
+recovers the requester, the DER signature recovers to the derived signer, `canSign` gating, spender pinning).
 
-Live end-to-end (verified on testnet): **deposit→mint**, **contract-signed withdrawal**
-(epoch 0→1), **AMM swap** (100 dcrETH → 197.43 UFM).
+Live (Sapphire + Sepolia testnets), all on the EIP-712 `SigningCommittee` `0x86de…`:
+- **deposit→mint** and **AMM swap** (100 dcrETH → 197.43 UFM) verified on-chain.
+- on-chain isolation test above passes 5/5.
+- **full contract-signed withdrawal round-trip** (deposit→lock→committee-sign→finalize, **epoch 0→1**):
+  the committee returned a raw Sapphire DER signature, the client split it + recovered `v`, and the
+  withdrawal was accepted on Sepolia (`0x9edd0adc052111ea3d6b6ea6bb9ec647a4bd873c9620156d904e8f42d1d1d4ae`)
+  and finalized on Sapphire.
 
 ## Mining-pool integration seam
 

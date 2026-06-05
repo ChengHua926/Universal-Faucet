@@ -81,8 +81,9 @@ expose it.
 
 [`withdraw-live.ts`](withdraw-live.ts) — full deposit → lock → sign → broadcast →
 finalize. The withdrawal tx is signed by the **Sapphire-contract committee**
-(`SapphireSigningCommittee`, in `crossroads_oracle/contracts`) in one confidential
-`eth_call` — no MPC, no nodes, no DKG.
+(`SigningCommittee`, EIP-712, in `crossroads_oracle/contracts`) in one confidential
+`eth_call` — no MPC, no nodes, no DKG. The spender authorizes an EIP-712 `SignRequest`;
+`sign()` returns the raw Sapphire DER signature, which the client splits + recovers `v`.
 
 ## Dev validators (no keys needed)
 

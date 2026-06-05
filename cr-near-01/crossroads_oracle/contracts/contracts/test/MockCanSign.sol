@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @notice Minimal asset-policy stub for testing SapphireSigningCommittee in
+/// @notice Minimal asset-policy stub for testing SigningCommittee in
 /// isolation: canSign returns a settable flag (optionally only for an allowed
 /// spender), mimicking CrossroadsAssetContract.canSign's signature.
 contract MockCanSign {
