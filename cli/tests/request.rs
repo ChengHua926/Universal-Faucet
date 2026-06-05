@@ -1,6 +1,6 @@
 use clap::{CommandFactory, Parser};
 use pretty_assertions::assert_eq;
-use xpool_cli::commands::{run, Cli, Commands};
+use xpool_cli::commands::{render_error, run, Cli, CliError, Commands};
 
 #[test]
 fn user_facing_command_is_drip() {
@@ -65,8 +65,52 @@ async fn direct_request_requires_complete_tuple() {
         .await
         .expect_err("bare drip should fail usage validation");
 
+    assert_eq!(error.to_string(), "missing faucet request");
     assert_eq!(
-        error.to_string(),
-        "usage: drip <chain> <token> <recipient-address> or drip <command>"
+        render_error(&error),
+        [
+            "error: missing faucet request",
+            "",
+            "Run one of:",
+            "  drip enroll --name alice",
+            "  drip base-sepolia eth 0x...",
+            "  drip status",
+            "",
+            "See: drip --help",
+        ]
+        .join("\n")
+    );
+}
+
+#[test]
+fn help_contains_product_examples_and_command_descriptions() {
+    let help = Cli::command().render_help().to_string();
+
+    assert!(help.contains("Usage: drip [OPTIONS] [CHAIN] [TOKEN] [RECIPIENT_ADDRESS] [COMMAND]"));
+    assert!(help.contains("drip base-sepolia eth 0x1111111111111111111111111111111111111111"));
+    assert!(help.contains("Enroll this device"));
+    assert!(help.contains("Start local proof-of-work"));
+    assert!(help.contains("Show local miner and server credit status"));
+}
+
+#[test]
+fn config_errors_tell_user_to_enroll_first() {
+    let error = CliError::Config(xpool_cli::config::ConfigError::Read {
+        path: "/tmp/drip/config.json".into(),
+        source: std::io::Error::from(std::io::ErrorKind::NotFound),
+    });
+
+    assert_eq!(
+        render_error(&error),
+        [
+            "error: no drip profile found",
+            "",
+            "Run:",
+            "  drip enroll --name <name>",
+            "",
+            "Then request faucet output:",
+            "  drip base-sepolia eth 0x...",
+        ]
+        .join("\n")
     );
 }

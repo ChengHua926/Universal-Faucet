@@ -47,15 +47,24 @@ fn renders_live_worker_status_for_cli_output() {
     assert_eq!(
         render_live_worker_status(&status),
         vec![
-            "server connected true".to_string(),
-            "worker w_32e47f31771c457f96a19e617421a327 (alice / macbook1)".to_string(),
-            "shares accepted=3 rejected=1 invalid=0".to_string(),
-            "hashes 33000".to_string(),
-            "hashrate 10s=0.83 60s=0.13 15m=0.02".to_string(),
-            "paper-share points=30000 shares=3 hashes=33000".to_string(),
-            "intent base-sepolia eth 0x1111111111111111111111111111111111111111 active".to_string(),
-            "settlement pending=1 submitted=0 confirmed=0 failed=0 pending_amount=30000"
-                .to_string(),
+            "Worker".to_string(),
+            "  name:        w_32e47f31771c457f96a19e617421a327".to_string(),
+            "  user/device: alice / macbook1".to_string(),
+            "  server:      connected (2 connections)".to_string(),
+            "".to_string(),
+            "Mining".to_string(),
+            "  shares:      3 accepted, 1 rejected, 0 invalid".to_string(),
+            "  hashes:      33,000".to_string(),
+            "  hashrate:    0.83 H/s 10s, 0.13 H/s 60s, 0.02 H/s 15m".to_string(),
+            "".to_string(),
+            "Credit".to_string(),
+            "  paper-share: 30,000 points".to_string(),
+            "  source:      3 accepted shares, 33,000 hashes".to_string(),
+            "".to_string(),
+            "Payout".to_string(),
+            "  intent:      active -> base-sepolia eth".to_string(),
+            "  recipient:   0x1111111111111111111111111111111111111111".to_string(),
+            "  settlement:  1 pending (30,000), 0 submitted, 0 confirmed, 0 failed".to_string(),
         ]
     );
 }
