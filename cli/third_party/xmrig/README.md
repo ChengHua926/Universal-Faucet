@@ -30,7 +30,7 @@ Local E2E verification on macOS arm64:
 
 ```text
 DONATE 0%
-accepted shares through xpool-gate
+accepted shares through the configured external Stratum pool
 drip stop exits without the previous libuv signal-shutdown assertion
 ```
 

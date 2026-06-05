@@ -10,7 +10,6 @@ use crate::config::StoredConfig;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XmrigSettings {
     pub threads: usize,
-    pub tls: bool,
     pub log_file: Option<String>,
 }
 
@@ -49,12 +48,12 @@ pub fn generate_xmrig_config(config: &StoredConfig, settings: XmrigSettings) -> 
             rx: vec![-1; settings.threads],
         },
         pools: vec![XmrigPoolConfig {
-            url: format!("{}:{}", config.proxy_host, config.proxy_port),
-            user: config.worker_name.clone(),
-            pass: config.worker_token.clone(),
-            rig_id: config.worker_name.clone(),
+            url: config.mining_pool_url.clone(),
+            user: config.identity.address.clone(),
+            pass: "x".to_string(),
+            rig_id: config.identity.address.clone(),
             keepalive: true,
-            tls: settings.tls,
+            tls: config.mining_pool_tls,
         }],
     }
 }

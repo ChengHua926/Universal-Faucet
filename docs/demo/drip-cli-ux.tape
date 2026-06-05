@@ -19,7 +19,7 @@ Type "clear"
 Enter
 Sleep 1s
 
-Type "./target/debug/drip base-sepolia eth 0x111"
+Type "./target/debug/drip identity"
 Enter
 Sleep 6s
 

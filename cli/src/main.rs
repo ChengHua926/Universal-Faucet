@@ -1,5 +1,5 @@
 use clap::Parser;
-use xpool_cli::commands::{render_error, run, Cli};
+use drip_cli::commands::{render_error, run, Cli};
 
 #[tokio::main]
 async fn main() {

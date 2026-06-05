@@ -1,30 +1,30 @@
-use pretty_assertions::assert_eq;
-use std::path::Path;
-use xpool_cli::{
-    config::StoredConfig,
+use drip_cli::{
+    config::{StoredConfig, StoredIdentity},
     xmrig::{
         bundled_xmrig_path_for, generate_xmrig_config, packaged_xmrig_path_for_exe, XmrigSettings,
     },
 };
+use pretty_assertions::assert_eq;
+use std::path::Path;
 
 #[test]
-fn generates_xmrig_config_for_proxy_worker() {
+fn generates_xmrig_config_using_ethereum_address_as_username() {
     let stored = StoredConfig {
         api_base_url: "http://127.0.0.1:8081".to_string(),
-        user_id: "user-id".to_string(),
-        worker_id: "worker-id".to_string(),
-        worker_name: "w_32e47f31771c457f96a19e617421a327".to_string(),
-        worker_token: "xp_secret".to_string(),
-        proxy_host: "localhost".to_string(),
-        proxy_port: 3333,
-        machine_label: "macbook1".to_string(),
+        mining_pool_url: "pool.example.com:443".to_string(),
+        mining_pool_tls: true,
+        voucher_interval_seconds: 300,
+        identity: StoredIdentity {
+            address: "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf".to_string(),
+            private_key: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                .to_string(),
+        },
     };
 
     let config = generate_xmrig_config(
         &stored,
         XmrigSettings {
             threads: 2,
-            tls: false,
             log_file: None,
         },
     );
@@ -33,26 +33,24 @@ fn generates_xmrig_config_for_proxy_worker() {
     assert_eq!(json["autosave"], false);
     assert_eq!(json["cpu"]["enabled"], true);
     assert_eq!(json["cpu"]["rx"], serde_json::json!([-1, -1]));
-    assert!(json["cpu"].get("max-threads-hint").is_none());
-    assert_eq!(json["pools"][0]["url"], "localhost:3333");
+    assert_eq!(json["pools"][0]["url"], "pool.example.com:443");
     assert_eq!(
         json["pools"][0]["user"],
-        "w_32e47f31771c457f96a19e617421a327"
+        "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
     );
-    assert_eq!(json["pools"][0]["pass"], "xp_secret");
+    assert_eq!(json["pools"][0]["pass"], "x");
     assert_eq!(
         json["pools"][0]["rig-id"],
-        "w_32e47f31771c457f96a19e617421a327"
+        "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
     );
     assert_eq!(json["pools"][0]["keepalive"], true);
-    assert_eq!(json["pools"][0]["tls"], false);
+    assert_eq!(json["pools"][0]["tls"], true);
 
     let object = json.as_object().expect("object");
     assert!(
-        !object.contains_key("worker_token"),
-        "XMRig config should pass the token as pool password, not as a separate field"
+        !object.contains_key("private_key"),
+        "XMRig config must never expose the local Ethereum private key"
     );
-    assert!(object.get("log-file").is_none());
 }
 
 #[test]

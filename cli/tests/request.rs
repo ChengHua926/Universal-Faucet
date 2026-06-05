@@ -1,6 +1,6 @@
 use clap::{CommandFactory, Parser};
+use drip_cli::commands::{render_error, run, Cli, CliError, Commands};
 use pretty_assertions::assert_eq;
-use xpool_cli::commands::{render_error, run, Cli, CliError, Commands};
 
 #[test]
 fn user_facing_command_is_drip() {
@@ -8,22 +8,59 @@ fn user_facing_command_is_drip() {
 }
 
 #[test]
-fn parses_faucet_request_command() {
+fn parses_start_with_voucher_interval_and_pool_url() {
     let cli = Cli::parse_from([
         "drip",
-        "request",
+        "--pool-url",
+        "pool.example.com:443",
+        "start",
+        "--threads",
+        "2",
+        "--voucher-interval-seconds",
+        "60",
+    ]);
+
+    assert_eq!(cli.pool_url, "pool.example.com:443");
+    match cli.command {
+        Some(Commands::Start {
+            threads,
+            voucher_interval_seconds,
+            ..
+        }) => {
+            assert_eq!(threads, Some(2));
+            assert_eq!(voucher_interval_seconds, Some(60));
+        }
+        other => panic!("expected start command, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_redemption_commands() {
+    let claim = Cli::parse_from(["drip", "claim", "--refresh", "--yes"]);
+    match claim.command {
+        Some(Commands::Claim { refresh, yes }) => {
+            assert_eq!(refresh, true);
+            assert_eq!(yes, true);
+        }
+        other => panic!("expected claim command, got {other:?}"),
+    }
+
+    let withdraw = Cli::parse_from([
+        "drip",
+        "withdraw",
         "base-sepolia",
         "eth",
         "0x1111111111111111111111111111111111111111",
-        "--receive-pool-token",
+        "--refresh",
+        "--yes",
     ]);
-
-    match cli.command {
-        Some(Commands::Request {
+    match withdraw.command {
+        Some(Commands::Withdraw {
             chain,
             token,
             recipient_address,
-            receive_pool_token,
+            refresh,
+            yes,
         }) => {
             assert_eq!(chain, "base-sepolia");
             assert_eq!(token, "eth");
@@ -31,50 +68,43 @@ fn parses_faucet_request_command() {
                 recipient_address,
                 "0x1111111111111111111111111111111111111111"
             );
-            assert_eq!(receive_pool_token, true);
+            assert_eq!(refresh, true);
+            assert_eq!(yes, true);
         }
-        other => panic!("expected request command, got {other:?}"),
+        other => panic!("expected withdraw command, got {other:?}"),
     }
 }
 
 #[test]
-fn parses_direct_faucet_request() {
-    let cli = Cli::try_parse_from([
-        "drip",
-        "base-sepolia",
-        "eth",
-        "0x1111111111111111111111111111111111111111",
-        "--receive-pool-token",
-    ])
-    .expect("direct request should parse");
+fn help_contains_cli_only_commands() {
+    let help = Cli::command().render_help().to_string();
 
-    assert!(cli.command.is_none());
-    assert_eq!(cli.chain.as_deref(), Some("base-sepolia"));
-    assert_eq!(cli.token.as_deref(), Some("eth"));
-    assert_eq!(
-        cli.recipient_address.as_deref(),
-        Some("0x1111111111111111111111111111111111111111")
-    );
-    assert_eq!(cli.receive_pool_token, true);
+    assert!(help.contains("drip start --threads 2"));
+    assert!(help.contains("identity"));
+    assert!(help.contains("checkpoint"));
+    assert!(help.contains("restore"));
+    assert!(help.contains("withdraw"));
+    assert!(!help.contains("enroll"));
+    assert!(!help.contains("leaderboard"));
 }
 
 #[tokio::test]
-async fn direct_request_requires_complete_tuple() {
+async fn bare_drip_returns_actionable_usage() {
     let cli = Cli::try_parse_from(["drip"]).expect("bare drip should parse before validation");
     let error = run(cli)
         .await
         .expect_err("bare drip should fail usage validation");
 
-    assert_eq!(error.to_string(), "missing faucet request");
+    assert_eq!(error.to_string(), "missing command");
     assert_eq!(
         render_error(&error),
         [
-            "error: missing faucet request",
+            "error: missing command",
             "",
             "Run one of:",
-            "  drip enroll --name alice",
-            "  drip base-sepolia eth 0x...",
+            "  drip start --threads 2",
             "  drip status",
+            "  drip withdraw base-sepolia eth 0x...",
             "",
             "See: drip --help",
         ]
@@ -83,33 +113,18 @@ async fn direct_request_requires_complete_tuple() {
 }
 
 #[test]
-fn help_contains_product_examples_and_command_descriptions() {
-    let help = Cli::command().render_help().to_string();
-
-    assert!(help.contains("Usage: drip [OPTIONS] [CHAIN] [TOKEN] [RECIPIENT_ADDRESS] [COMMAND]"));
-    assert!(help.contains("drip base-sepolia eth 0x1111111111111111111111111111111111111111"));
-    assert!(help.contains("Enroll this device"));
-    assert!(help.contains("Start local proof-of-work"));
-    assert!(help.contains("Show local miner and server credit status"));
-}
-
-#[test]
-fn config_errors_tell_user_to_enroll_first() {
-    let error = CliError::Config(xpool_cli::config::ConfigError::Read {
-        path: "/tmp/drip/config.json".into(),
-        source: std::io::Error::from(std::io::ErrorKind::NotFound),
-    });
+fn missing_voucher_error_is_actionable() {
+    let error = CliError::MissingVoucher;
 
     assert_eq!(
         render_error(&error),
         [
-            "error: no drip profile found",
+            "error: no local voucher found",
             "",
             "Run:",
-            "  drip enroll --name <name>",
+            "  drip checkpoint",
             "",
-            "Then request faucet output:",
-            "  drip base-sepolia eth 0x...",
+            "or mine until the next voucher checkpoint completes.",
         ]
         .join("\n")
     );

@@ -37,7 +37,7 @@ if [[ ! -x "$XMRIG_BIN" ]]; then
   exit 1
 fi
 
-cargo build --release -p xpool-cli --bin drip
+cargo build --release -p drip-cli --bin drip
 
 rm -rf "$PACKAGE_DIR" "$ARCHIVE" "$ARCHIVE.sha256"
 mkdir -p "$PACKAGE_DIR/third_party/xmrig/$PLATFORM"
@@ -59,10 +59,10 @@ cat > "$PACKAGE_DIR/README.txt" <<EOF
 drip universal proof-of-work faucet CLI
 
 Run:
-  ./drip enroll --name <name>
-  ./drip <chain> <token> <recipient-address>
   ./drip start --threads 1
   ./drip status
+  ./drip checkpoint
+  ./drip withdraw <chain> <token> <recipient-address>
   ./drip stop
 
 This archive bundles source-patched XMRig for $PLATFORM at:

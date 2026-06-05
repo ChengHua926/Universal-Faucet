@@ -31,7 +31,7 @@ success output
   next/observe command where useful
 
 status output
-  split local miner, worker, mining, credit, payout
+  split local miner, identity, pool, voucher
   format numbers and hashrates
   avoid raw booleans
 ```
@@ -39,7 +39,7 @@ status output
 Demo:
 
 ```bash
-cargo build -p xpool-cli
+cargo build -p drip-cli
 vhs docs/demo/drip-cli-ux.tape
 ```
 
