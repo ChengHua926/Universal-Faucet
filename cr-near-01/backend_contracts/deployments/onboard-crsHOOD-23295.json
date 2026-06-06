@@ -1,0 +1,31 @@
+{
+  "network": {
+    "name": "sapphireTestnet",
+    "chainId": "23295"
+  },
+  "oracle": "0x52f470535A2898918e6c3FeE4fB0193c2E739b78",
+  "minConfirmations": 3,
+  "asset": {
+    "address": "0xCf69e8790aF719C4241547A157eA6FBdE093984F",
+    "name": "Crossroads Hoodi ETH",
+    "symbol": "crsHOOD"
+  },
+  "bridgeOracle": "0xdb15ABe063f59779C2190C0dFdF58013c6554a79",
+  "provethVerifier": "0x8EB1E27eA1993731c32eB7a5ad0c8315c8585888",
+  "transactionSerializer": "0x635daDe5b94c68F5742fdbD5AA1a3FA80DB3fe80",
+  "encAccount": {
+    "address": "0x4B658cEcf016C627B2B47657409d4bF67dE0e1F5",
+    "id": "0x0000000000000000000000004b658cecf016c627b2b47657409d4bf67de0e1f5"
+  },
+  "pool": {
+    "pair": "0x098B21240954e20BbCbcCf05A5A0E4e9f0cce118",
+    "token": "0xCf69e8790aF719C4241547A157eA6FBdE093984F",
+    "mining": "0xDAbaB98ea957bCa3D4d0B7C3F2f775Bb6537BA0d",
+    "factory": "0x39924Df94Cc639654DdCF74ededCA428Ca285582",
+    "router": "0x94Aa01382f7c64F98D591Af04A179A76fED5da69"
+  },
+  "liquidity": {
+    "token": "0.0015",
+    "mining": "3.0"
+  }
+}

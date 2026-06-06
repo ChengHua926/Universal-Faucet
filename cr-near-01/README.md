@@ -97,9 +97,9 @@ supported).
 ## Deployed (Sapphire testnet, chainId 23295)
 
 - **Signing committee (`SigningCommittee`, EIP-712):** `0x86de215fEfB0eA85c0F7c771d7091B2003eA4237`
-- **3-conf stack:** oracle `0x3045628524530CB056D74Eacd2C4F0b0A6Bf4388`, asset crsETH `0x52B56eEFE06B54f9cf323310Bf3CDa5bfecD87a3`
-- **12-conf stack:** oracle `0xa852946E2FfEb92FB8f06a8272cCE5323eCFE133`, asset crsETH `0x22d3Fb59c21940645E4c212316f33c898402eAF5`
-- **AMM:** Factory `0x39924Df94Cc639654DdCF74ededCA428Ca285582`, Router `0x94Aa01382f7c64F98D591Af04A179A76fED5da69`
+- **Sepolia stack (chainId 11155111):** oracle `0x3045628524530CB056D74Eacd2C4F0b0A6Bf4388`, asset crsETH `0x52B56eEFE06B54f9cf323310Bf3CDa5bfecD87a3` (also a 12-conf oracle `0xa852946E2FfEb92FB8f06a8272cCE5323eCFE133` / crsETH `0x22d3Fb59c21940645E4c212316f33c898402eAF5`)
+- **Hoodi stack (chainId 560048) — 2nd chain via the onboarding tool:** oracle `0x52f470535A2898918e6c3FeE4fB0193c2E739b78`, asset crsHOOD `0x15BDE4FE27a30de6A3b9a800CA03aeb05fA8a481`, pool `0x413F4882169EC79eA2fEf7EC04BD0A8c67f323aa`
+- **AMM:** Factory `0x39924Df94Cc639654DdCF74ededCA428Ca285582`, Router `0x94Aa01382f7c64F98D591Af04A179A76fED5da69`, mining token UFM `0xDAbaB98ea957bCa3D4d0B7C3F2f775Bb6537BA0d`
 - **Oracle API:** ephemeral — get the current URL from `oasis rofl machine show`
 
 ## Tests
@@ -122,6 +122,10 @@ Live (Sapphire + Sepolia testnets), all on the EIP-712 `SigningCommittee` `0x86d
   the committee returned a raw Sapphire DER signature, the client split it + recovered `v`, and the
   withdrawal was accepted on Sepolia (`0x9edd0adc052111ea3d6b6ea6bb9ec647a4bd873c9620156d904e8f42d1d1d4ae`)
   and finalized on Sapphire.
+- **multi-chain, one command** — onboarded **crsHOOD on a 2nd chain (Hoodi, 560048)** with
+  `onboard-crossroads-token.ts`: it deployed Hoodi's oracle config, the bridge + asset, minted via a real
+  Hoodi deposit (`0x526d67275b6e5f5f002d7e9db33ce5092c0d0174b6f3b9b930d65103d7bf63cd`), and created the
+  crsHOOD/UFM pool — sharing the same TEE container and mining AMM as the Sepolia crsETH stack.
 
 ## Mining-pool integration seam
 

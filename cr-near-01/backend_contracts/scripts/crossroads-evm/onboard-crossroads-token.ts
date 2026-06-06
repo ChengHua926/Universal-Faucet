@@ -69,9 +69,7 @@ const ASSET_ABI = [
 const MINING_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function approve(address,uint256) returns (bool)",
-  "function owner() view returns (address)",
-  "function isMinter(address) view returns (bool)",
-  "function setMinter(address,bool)",
+  "function transfer(address,uint256) returns (bool)",
   "function mint(address,uint256)",
 ];
 
@@ -271,22 +269,26 @@ async function main() {
   // --- 3. create the pool + seed liquidity ----------------------------------
   console.log("\n[3/3] Creating the pool + adding liquidity…");
   const mining = new ethers.Contract(miningAddr, MINING_ABI, deployer);
-  // Ensure the LP holds enough mining token. If the deployer owns/min-rights the
-  // mining token (our demo), mint the shortfall; otherwise the LP must pre-hold it.
+  // Ensure the LP holds enough mining token. Prefer transferring from the
+  // deployer's existing balance (works for any ERC20 mining token); fall back to
+  // minting if the deployer can (owner/minter); otherwise the LP must pre-hold it.
   const lpMiningBal: bigint = await mining.balanceOf(depositor.address);
   if (lpMiningBal < miningLiq) {
     const shortfall = miningLiq - lpMiningBal;
     const deployerAddr = await deployer.getAddress();
-    if (!(await mining.isMinter(deployerAddr)) && (await mining.owner()) === deployerAddr) {
-      await (await mining.setMinter(deployerAddr, true)).wait();
-    }
-    if (await mining.isMinter(deployerAddr)) {
-      await (await mining.mint(depositor.address, shortfall)).wait();
-      console.log(`  minted ${ethersLib.formatEther(shortfall)} mining token to the LP`);
+    const deployerBal: bigint = await mining.balanceOf(deployerAddr);
+    if (deployerBal >= shortfall) {
+      await (await (mining.connect(deployer) as ethersLib.Contract).transfer(depositor.address, shortfall)).wait();
+      console.log(`  transferred ${ethersLib.formatEther(shortfall)} mining token from deployer to the LP`);
     } else {
-      throw new Error(
-        `LP ${depositor.address} holds ${ethersLib.formatEther(lpMiningBal)} mining token, needs ${ethersLib.formatEther(miningLiq)} (deployer can't mint it — fund the LP)`,
-      );
+      try {
+        await (await (mining.connect(deployer) as ethersLib.Contract).mint(depositor.address, shortfall)).wait();
+        console.log(`  minted ${ethersLib.formatEther(shortfall)} mining token to the LP`);
+      } catch {
+        throw new Error(
+          `LP ${depositor.address} needs ${ethersLib.formatEther(miningLiq)} mining token; deployer can neither transfer (has ${ethersLib.formatEther(deployerBal)}) nor mint it — fund the LP first`,
+        );
+      }
     }
   }
 
