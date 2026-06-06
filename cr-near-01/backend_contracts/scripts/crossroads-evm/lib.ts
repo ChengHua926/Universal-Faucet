@@ -14,6 +14,22 @@ export const SAPPHIRE_TESTNET_CHAIN_ID = 23295;
 export const SOURCE_CHAIN = { chainId: 11155111, name: "sepolia" };
 export const DEFAULT_SOURCE_RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
 
+// Source chain derived from env, so the same deposit/proof flow can target ANY
+// EVM chain (multi-chain). `SOURCE_CHAIN_ID` + `SOURCE_RPC_URLS` (comma-separated;
+// the first is the read RPC) are the per-chain knobs; defaults to Sepolia for
+// back-compat. The header/proof reconstruction is already chain-agnostic.
+export function sourceChainFromEnv(): { chainId: number; name: string; rpcUrl: string } {
+  const chainId = Number(process.env.SOURCE_CHAIN_ID ?? SOURCE_CHAIN.chainId);
+  const rpcUrl =
+    process.env.SOURCE_RPC_URLS?.split(",").map((s) => s.trim()).filter(Boolean)[0] ??
+    process.env.SEPOLIA_RPC_URL ??
+    DEFAULT_SOURCE_RPC_URL;
+  const name =
+    process.env.SOURCE_CHAIN_NAME ??
+    (chainId === SOURCE_CHAIN.chainId ? "sepolia" : `chain-${chainId}`);
+  return { chainId, name, rpcUrl };
+}
+
 // Live multi-chain HeaderReportOracle on Sapphire testnet: Sepolia-configured
 // (sourceRpcQuorum 2, 12 confirmations, 3 RPC URLs), TEE signer 0xEd80…6308
 // already registered. This is the one the POST ?config= path reads RPC config

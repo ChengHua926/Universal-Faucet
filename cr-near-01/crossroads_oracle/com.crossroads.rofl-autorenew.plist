@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent: run rofl-autorenew.sh every 30 min to keep the oracle ROFL
+  machine alive. Install:
+    cp com.crossroads.rofl-autorenew.plist ~/Library/LaunchAgents/
+    launchctl load  ~/Library/LaunchAgents/com.crossroads.rofl-autorenew.plist
+    launchctl start com.crossroads.rofl-autorenew     # run once now
+  Inspect:  launchctl list | grep rofl-autorenew ; tail -f /tmp/rofl-autorenew.log
+  Remove:   launchctl unload ~/Library/LaunchAgents/com.crossroads.rofl-autorenew.plist
+
+  The script reads the keystore passphrase from the macOS Keychain (service
+  "oasis-rofl-passphrase"). Store it once with:
+    security add-generic-password -s oasis-rofl-passphrase -a "$USER" -w
+  (Or set OASIS_PASSPHRASE in EnvironmentVariables below — less secure.)
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.crossroads.rofl-autorenew</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/kaiyang/Desktop/Universal-Faucet/cr-near-01/crossroads_oracle/rofl-autorenew.sh</string>
+    <string>auto</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/Users/kaiyang/.cargo/bin:/Users/kaiyang/.foundry/bin:/usr/bin:/bin</string>
+    <!-- Tunables (optional): -->
+    <key>RENEW_THRESHOLD_HOURS</key><string>2</string>
+    <key>RENEW_TERM_HOURS</key><string>6</string>
+  </dict>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/rofl-autorenew.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/rofl-autorenew.log</string>
+</dict>
+</plist>

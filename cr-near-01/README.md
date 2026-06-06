@@ -36,7 +36,9 @@ Crossroads assets.
 - `export PATH="/opt/homebrew/bin:$HOME/.cargo/bin:$HOME/.foundry/bin:$PATH"` (Node ≥22.10 + Foundry)
 - A funded **Sapphire testnet** key (TEST-ROSE) and a funded **Sepolia** key (Sepolia ETH).
 - TEE oracle running: `oasis rofl deploy --replace-machine` → `oasis rofl machine show` → copy
-  the `https://p8080.….rofl.app` URL.
+  the `https://p8080.….rofl.app` URL. (Rentals are short/non-refundable; keep it alive
+  unattended with `crossroads_oracle/rofl-autorenew.sh` — see
+  [ROFL-AUTORENEW.md](crossroads_oracle/ROFL-AUTORENEW.md).)
 - Put both keys + the URL in `backend_contracts/.env.demo-keys`, then before each run:
   `set -a; source .env.demo-keys; set +a`
 
@@ -64,6 +66,33 @@ COMMITTEE_ADDRESS=<committee> npx hardhat run scripts/crossroads-evm/withdraw-li
 # 6. AMM: Uniswap v2 + mining token + pools + a swap.
 npx hardhat run scripts/mining-amm/deploy-amm.ts --network sapphireTestnet
 ```
+
+## Onboard a new token / chain (one command)
+
+List a new Crossroads token on **any EVM source chain** in the mining AMM with a
+single command. The deployer passes the chain's knobs — **RPC URLs**, **agreement
+quorum**, **confirmation depth** (default 3), **chainId** — and the tool deploys
+that chain's block-hash oracle, the bridge + a real Crossroads asset, mints it via
+a real deposit, then creates + seeds its pool against the mining token (reusing
+the existing Uniswap factory/router/mining token, defaults from the AMM
+deployment).
+
+```sh
+SOURCE_CHAIN_ID=<id> SOURCE_RPC_URLS=<url1>,<url2> SOURCE_RPC_QUORUM=2 MIN_CONFIRMATIONS=3 \
+ASSET_NAME="Crossroads Foo" ASSET_SYMBOL=crsFOO DEPOSIT_ETH=0.0015 MINING_LIQUIDITY=3 \
+  npx hardhat run scripts/crossroads-evm/onboard-crossroads-token.ts --network sapphireTestnet
+```
+
+**Multi-chain = run it once per chain** with that chain's configs; the same TEE
+container serves every chain (via `?config=`) and the same mining AMM lists them
+all. Reuse an existing chain's oracle by passing `ORACLE_CONTRACT_ADDRESS=<oracle>`
+instead of the RPC/quorum/confirmations.
+
+A real Crossroads asset has **no pre-mint** — the token side of the pool is minted
+by the deposit, so the oracle must be live and the depositor key funded on the
+source chain. The source chain must produce standard Ethereum-format blocks (any
+ETH testnet works; OP-stack L2s need their `0x7e` system tx handled — not yet
+supported).
 
 ## Deployed (Sapphire testnet, chainId 23295)
 
