@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::{Read, Write},
+    io::{self, Read, Write},
     net::TcpListener,
     process::Command,
     sync::mpsc,
@@ -13,7 +13,7 @@ const PRIVATE_KEY: &str = "0x000000000000000000000000000000000000000000000000000
 #[test]
 fn status_reads_faucet_pool_and_miner_api() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let (base_url, requests) = spawn_json_server(vec![
+    let Some((base_url, requests)) = spawn_json_server(vec![
         (
             "/pool",
             r#"{
@@ -48,7 +48,9 @@ fn status_reads_faucet_pool_and_miner_api() {
               "api": "http://abc123.onion"
             }"#,
         ),
-    ]);
+    ]) else {
+        return;
+    };
     write_config(temp_dir.path(), &base_url);
 
     let output = Command::new(env!("CARGO_BIN_EXE_drip"))
@@ -86,7 +88,7 @@ fn status_reads_faucet_pool_and_miner_api() {
 #[test]
 fn checkpoint_requests_and_caches_faucet_voucher() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let (base_url, requests) = spawn_json_server(vec![(
+    let Some((base_url, requests)) = spawn_json_server(vec![(
         "/voucher",
         r#"{
           "user": "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
@@ -98,7 +100,9 @@ fn checkpoint_requests_and_caches_faucet_voucher() {
           "last_voucher_cumulative": 4000000000000,
           "on_chain_claimed": "3000000000000"
         }"#,
-    )]);
+    )]) else {
+        return;
+    };
     write_config(temp_dir.path(), &base_url);
 
     let output = Command::new(env!("CARGO_BIN_EXE_drip"))
@@ -140,9 +144,22 @@ fn write_config(home: &std::path::Path, api_base_url: &str) {
     .expect("write config");
 }
 
-fn spawn_json_server(routes: Vec<(&str, &str)>) -> (String, mpsc::Receiver<String>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock server");
-    let base_url = format!("http://{}", listener.local_addr().expect("local addr"));
+fn spawn_json_server(routes: Vec<(&str, &str)>) -> Option<(String, mpsc::Receiver<String>)> {
+    match try_spawn_json_server(routes) {
+        Ok(server) => Some(server),
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+            eprintln!("skipping faucet API e2e: local mock server bind denied: {error}");
+            None
+        }
+        Err(error) => panic!("bind mock server: {error}"),
+    }
+}
+
+fn try_spawn_json_server(
+    routes: Vec<(&str, &str)>,
+) -> io::Result<(String, mpsc::Receiver<String>)> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let base_url = format!("http://{}", listener.local_addr()?);
     let (tx, rx) = mpsc::channel();
     let routes: Vec<(String, String)> = routes
         .into_iter()
@@ -173,5 +190,5 @@ fn spawn_json_server(routes: Vec<(&str, &str)>) -> (String, mpsc::Receiver<Strin
         }
     });
 
-    (base_url, rx)
+    Ok((base_url, rx))
 }

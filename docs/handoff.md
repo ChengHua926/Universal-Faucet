@@ -56,7 +56,7 @@ private key must not be written to XMRig config or normal status output.
 DRIP_HOME=/private/tmp/drip-demo
 DRIP_API_BASE_URL=https://p8080.m269.opf-mainnet-rofl-55.rofl.app
 DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
-DRIP_POOL_TLS=false
+DRIP_POOL_TLS=true                    # optional explicit override
 DRIP_TOR_SOCKS5=socks5://localhost:9050  # optional Tor fallback only
 DRIP_XMRIG_PATH=/optional/path/to/xmrig
 ```
@@ -145,7 +145,7 @@ withdraw currently renders the target chain/token/address handoff only
 Demo artifact:
 
 ```text
-docs/demo/drip-cli-ux.gif
+docs/demo/drip-production-flow.gif
 ```
 
 Faucet integration boundary:

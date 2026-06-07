@@ -45,7 +45,9 @@ drip
 Required backend API shape:
 
 ```text
+GET  /pool
 GET  /miner/:addr
+GET  /onion
 GET  /state/:addr
 POST /voucher
 POST /restore
