@@ -69,6 +69,8 @@ Users do not install XMRig.
 
 ## 4. Tester Install
 
+Testers do not clone this repo.
+
 Give testers `drip-darwin-arm64.tar.gz`.
 
 ```bash
