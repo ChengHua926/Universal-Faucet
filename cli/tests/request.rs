@@ -13,6 +13,8 @@ fn parses_start_with_voucher_interval_and_pool_url() {
         "drip",
         "--pool-url",
         "pool.example.com:443",
+        "--tor-socks5",
+        "socks5://localhost:9050",
         "start",
         "--threads",
         "2",
@@ -20,7 +22,8 @@ fn parses_start_with_voucher_interval_and_pool_url() {
         "60",
     ]);
 
-    assert_eq!(cli.pool_url, "pool.example.com:443");
+    assert_eq!(cli.pool_url.as_deref(), Some("pool.example.com:443"));
+    assert_eq!(cli.tor_socks5.as_deref(), Some("socks5://localhost:9050"));
     match cli.command {
         Some(Commands::Start {
             threads,
@@ -32,6 +35,27 @@ fn parses_start_with_voucher_interval_and_pool_url() {
         }
         other => panic!("expected start command, got {other:?}"),
     }
+}
+
+#[test]
+fn raw_rofl_app_pool_error_is_actionable() {
+    let error = CliError::UnsupportedRoflAppPoolUrl("p3333.machine.rofl.app:443".to_string());
+
+    assert_eq!(
+        render_error(&error),
+        [
+            "error: direct rofl.app pool URL is not supported by XMRig",
+            "",
+            "XMRig does not send TLS SNI, so rofl.app passthrough drops the connection.",
+            "",
+            "Use one of:",
+            "  DRIP_POOL_URL=<operator-relay-host>:3333",
+            "  DRIP_POOL_URL=<tor-onion-stratum-host>:3333",
+            "",
+            "Current: p3333.machine.rofl.app:443",
+        ]
+        .join("\n")
+    );
 }
 
 #[test]

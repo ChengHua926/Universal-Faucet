@@ -37,6 +37,8 @@ pub struct XmrigPoolConfig {
     pub rig_id: String,
     pub keepalive: bool,
     pub tls: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub socks5: Option<String>,
 }
 
 pub fn generate_xmrig_config(config: &StoredConfig, settings: XmrigSettings) -> XmrigConfig {
@@ -54,8 +56,18 @@ pub fn generate_xmrig_config(config: &StoredConfig, settings: XmrigSettings) -> 
             rig_id: config.identity.address.clone(),
             keepalive: true,
             tls: config.mining_pool_tls,
+            socks5: config.tor_socks5.as_deref().map(xmrig_socks5_value),
         }],
     }
+}
+
+fn xmrig_socks5_value(proxy: &str) -> String {
+    proxy
+        .trim()
+        .strip_prefix("socks5://")
+        .or_else(|| proxy.trim().strip_prefix("socks5h://"))
+        .unwrap_or_else(|| proxy.trim())
+        .to_string()
 }
 
 pub fn default_threads() -> usize {

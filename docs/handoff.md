@@ -55,8 +55,9 @@ private key must not be written to XMRig config or normal status output.
 ```bash
 DRIP_HOME=/private/tmp/drip-demo
 DRIP_API_BASE_URL=http://127.0.0.1:8081
-DRIP_POOL_URL=127.0.0.1:3333
+DRIP_POOL_URL=127.0.0.1:3333        # clearnet relay/wrapper, not raw rofl.app
 DRIP_POOL_TLS=false
+DRIP_TOR_SOCKS5=socks5://localhost:9050
 DRIP_XMRIG_PATH=/optional/path/to/xmrig
 ```
 
@@ -66,6 +67,7 @@ Required API:
 
 ```text
 GET  /miner/:addr
+GET  /pool
 GET  /state/:addr
 POST /voucher
 POST /restore
@@ -95,6 +97,12 @@ Failed voucher requests are logged and retried; they do not stop mining.
 
 Users do not install or run XMRig manually.
 
+For the ROFL faucet pool, clearnet miners cannot point XMRig directly at the raw
+`rofl.app` passthrough host because XMRig does not send TLS SNI. Configure
+`DRIP_POOL_URL` to the operator relay/wrapper. Tor miners can use the onion
+stratum endpoint directly with `DRIP_TOR_SOCKS5`. Keep `DRIP_API_BASE_URL`
+separate unless the operator explicitly exposes the HTTP API on the same onion.
+
 Generated pool config:
 
 ```text
@@ -103,6 +111,7 @@ user      = local Ethereum address
 pass      = x
 rig-id    = local Ethereum address
 tls       = DRIP_POOL_TLS / config.mining_pool_tls
+socks5    = DRIP_TOR_SOCKS5 / config.tor_socks5, when set
 cpu.rx    = one -1 affinity entry per requested thread
 donations = disabled in packaged source build
 ```
@@ -127,4 +136,10 @@ Demo artifact:
 
 ```text
 docs/demo/drip-cli-ux.gif
+```
+
+Faucet integration boundary:
+
+```text
+docs/faucet-integration.md
 ```

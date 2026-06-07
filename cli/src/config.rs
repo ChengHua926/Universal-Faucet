@@ -14,6 +14,8 @@ pub struct StoredConfig {
     pub api_base_url: String,
     pub mining_pool_url: String,
     pub mining_pool_tls: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tor_socks5: Option<String>,
     pub voucher_interval_seconds: u64,
     pub identity: StoredIdentity,
 }
@@ -29,6 +31,7 @@ pub struct ConfigDefaults {
     pub api_base_url: String,
     pub mining_pool_url: String,
     pub mining_pool_tls: bool,
+    pub tor_socks5: Option<String>,
     pub voucher_interval_seconds: u64,
 }
 
@@ -102,6 +105,7 @@ pub fn load_or_create_config(
                 api_base_url: defaults.api_base_url.clone(),
                 mining_pool_url: defaults.mining_pool_url.clone(),
                 mining_pool_tls: defaults.mining_pool_tls,
+                tor_socks5: defaults.tor_socks5.clone(),
                 voucher_interval_seconds: defaults.voucher_interval_seconds,
                 identity: generate_identity().into(),
             };

@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use thiserror::Error;
 
 use crate::{
-    api::{ApiClient, ApiError, MinerStatus, VoucherOut},
+    api::{ApiClient, ApiError, MinerStatus, OnionStatus, PoolStatus, VoucherOut},
     config::{
         default_config_path, default_log_path, default_pid_path, default_voucher_loop_log_path,
         default_voucher_loop_pid_path, default_voucher_path, default_xmrig_config_path,
@@ -33,25 +33,30 @@ const GRACEFUL_STOP_WAIT_ATTEMPTS: usize = 150;
 #[command(name = "drip")]
 #[command(about = "Run local proof-of-work for faucet credit")]
 #[command(
-    after_help = "Examples:\n  drip start --threads 2\n  drip status\n  drip checkpoint\n  drip withdraw base-sepolia eth 0x1111111111111111111111111111111111111111\n\nEnvironment:\n  DRIP_API_BASE_URL  Pool backend HTTP API\n  DRIP_POOL_URL      Stratum mining pool URL\n  DRIP_POOL_TLS      Use TLS for Stratum mining pool\n  DRIP_XMRIG_PATH    Optional XMRig binary override\n  DRIP_HOME          Local profile/log/voucher directory"
+    after_help = "Examples:\n  drip start --threads 2\n  drip status\n  drip checkpoint\n  drip withdraw base-sepolia eth 0x1111111111111111111111111111111111111111\n\nEnvironment:\n  DRIP_API_BASE_URL  Pool backend HTTP API\n  DRIP_POOL_URL      Stratum mining pool URL\n  DRIP_TOR_SOCKS5    Tor SOCKS5 proxy for onion API/pool traffic\n  DRIP_POOL_TLS      Use TLS for Stratum mining pool\n  DRIP_XMRIG_PATH    Optional XMRig binary override\n  DRIP_HOME          Local profile/log/voucher directory"
 )]
 pub struct Cli {
     #[arg(
         long,
         env = "DRIP_API_BASE_URL",
-        default_value = DEFAULT_API_BASE_URL,
         global = true,
         help = "Pool backend HTTP API"
     )]
-    pub api_base_url: String,
+    pub api_base_url: Option<String>,
     #[arg(
         long,
         env = "DRIP_POOL_URL",
-        default_value = DEFAULT_POOL_URL,
         global = true,
         help = "Stratum mining pool URL for bundled XMRig"
     )]
-    pub pool_url: String,
+    pub pool_url: Option<String>,
+    #[arg(
+        long,
+        env = "DRIP_TOR_SOCKS5",
+        global = true,
+        help = "Tor SOCKS5 proxy for faucet API and XMRig onion pool traffic"
+    )]
+    pub tor_socks5: Option<String>,
     #[arg(
         long,
         env = "DRIP_POOL_TLS",
@@ -138,6 +143,8 @@ pub enum CliError {
     NotRunning,
     #[error("no local voucher found")]
     MissingVoucher,
+    #[error("raw rofl.app pool URL is not supported by XMRig: {0}")]
+    UnsupportedRoflAppPoolUrl(String),
     #[error("failed to stop process pid {pid}; signal command exited with {status}")]
     StopFailed { pid: u32, status: String },
     #[error("missing command")]
@@ -179,6 +186,19 @@ pub fn render_error(error: &CliError) -> String {
             "or mine until the next voucher checkpoint completes.",
         ]
         .join("\n"),
+        CliError::UnsupportedRoflAppPoolUrl(url) => [
+            "error: direct rofl.app pool URL is not supported by XMRig".to_string(),
+            String::new(),
+            "XMRig does not send TLS SNI, so rofl.app passthrough drops the connection."
+                .to_string(),
+            String::new(),
+            "Use one of:".to_string(),
+            "  DRIP_POOL_URL=<operator-relay-host>:3333".to_string(),
+            "  DRIP_POOL_URL=<tor-onion-stratum-host>:3333".to_string(),
+            String::new(),
+            format!("Current: {url}"),
+        ]
+        .join("\n"),
         CliError::AlreadyRunning(pid) => [
             format!("error: miner is already running with pid {pid}"),
             String::new(),
@@ -211,12 +231,18 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
     let Cli {
         api_base_url,
         pool_url,
+        tor_socks5,
         pool_tls,
         command,
     } = cli;
 
     match command {
-        Some(Commands::Identity) => identity(&api_base_url, &pool_url, pool_tls),
+        Some(Commands::Identity) => identity(
+            api_base_url.as_deref(),
+            pool_url.as_deref(),
+            tor_socks5.as_deref(),
+            pool_tls,
+        ),
         Some(Commands::Start {
             threads,
             xmrig_path,
@@ -228,8 +254,9 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
             voucher_interval_seconds,
         }) => {
             start(
-                &api_base_url,
-                &pool_url,
+                api_base_url.as_deref(),
+                pool_url.as_deref(),
+                tor_socks5.as_deref(),
                 pool_tls,
                 threads,
                 xmrig_path,
@@ -257,10 +284,16 @@ pub async fn run(cli: Cli) -> Result<(), CliError> {
     }
 }
 
-fn identity(api_base_url: &str, pool_url: &str, pool_tls: bool) -> Result<(), CliError> {
+fn identity(
+    api_base_url: Option<&str>,
+    pool_url: Option<&str>,
+    tor_socks5: Option<&str>,
+    pool_tls: bool,
+) -> Result<(), CliError> {
     let (config, created) = ensure_config(
         api_base_url,
         pool_url,
+        tor_socks5,
         pool_tls,
         DEFAULT_VOUCHER_INTERVAL_SECONDS,
     )?;
@@ -277,8 +310,9 @@ fn identity(api_base_url: &str, pool_url: &str, pool_tls: bool) -> Result<(), Cl
 }
 
 async fn start(
-    api_base_url: &str,
-    pool_url: &str,
+    api_base_url: Option<&str>,
+    pool_url: Option<&str>,
+    tor_socks5: Option<&str>,
     pool_tls: bool,
     threads: Option<usize>,
     xmrig_path: Option<PathBuf>,
@@ -292,8 +326,14 @@ async fn start(
         }
     }
 
-    let (mut config, created) =
-        ensure_config(api_base_url, pool_url, pool_tls, voucher_interval_seconds)?;
+    let (mut config, created) = ensure_config(
+        api_base_url,
+        pool_url,
+        tor_socks5,
+        pool_tls,
+        voucher_interval_seconds,
+    )?;
+    reject_raw_rofl_app_pool_url(&config.mining_pool_url)?;
     config.voucher_interval_seconds = voucher_interval_seconds;
     save_config(&default_config_path()?, &config)?;
 
@@ -398,10 +438,10 @@ fn stop() -> Result<(), CliError> {
 async fn status() -> Result<(), CliError> {
     let config = load_config(&default_config_path()?)?;
     let miner_pid = read_pid(&default_pid_path()?)?.filter(|pid| process_is_running(*pid));
-    let miner_status = ApiClient::new(&config.api_base_url)
-        .miner_status(&config.identity.address)
-        .await
-        .ok();
+    let client = ApiClient::with_tor_socks5(&config.api_base_url, config.tor_socks5.as_deref())?;
+    let pool_status = client.pool_status().await.ok();
+    let miner_status = client.miner_status(&config.identity.address).await.ok();
+    let onion_status = client.onion_status().await.ok();
     let voucher = match load_voucher(&default_voucher_path()?) {
         Ok(voucher) => Some(voucher),
         Err(VoucherError::Read { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
@@ -413,6 +453,8 @@ async fn status() -> Result<(), CliError> {
     for line in render_status_sections(
         miner_pid,
         &config.identity.address,
+        pool_status.as_ref(),
+        onion_status.as_ref(),
         miner_status.as_ref(),
         voucher.as_ref(),
     ) {
@@ -425,6 +467,8 @@ async fn status() -> Result<(), CliError> {
 pub fn render_status_sections(
     miner_pid: Option<u32>,
     address: &str,
+    pool_status: Option<&PoolStatus>,
+    onion_status: Option<&OnionStatus>,
     miner_status: Option<&MinerStatus>,
     voucher: Option<&Voucher>,
 ) -> Vec<String> {
@@ -450,23 +494,56 @@ pub fn render_status_sections(
 
     lines.push(String::new());
     lines.push("Pool".to_string());
-    if let Some(status) = miner_status {
+    if let Some(status) = pool_status {
+        lines.push(format!(
+            "  upstream: {}",
+            if status.upstream.connected {
+                "connected"
+            } else {
+                "disconnected"
+            }
+        ));
         lines.push(format!(
             "  hashrate: {}",
-            format_optional_hashrate(status.hashrate)
+            format_optional_hashrate(Some(status.hashrate))
+        ));
+        lines.push(format!("  active miners: {}", status.active_miners));
+        lines.push(format!(
+            "  total work: {}",
+            format_unsigned_number(status.total_work)
+        ));
+        if let Some(onion) = onion_status.and_then(|status| status.stratum.as_deref()) {
+            lines.push(format!("  tor stratum: {onion}"));
+        }
+    } else {
+        lines.push("  status:   unavailable".to_string());
+        if let Some(onion) = onion_status.and_then(|status| status.stratum.as_deref()) {
+            lines.push(format!("  tor stratum: {onion}"));
+        }
+    }
+
+    lines.push(String::new());
+    lines.push("Miner credit".to_string());
+    if let Some(status) = miner_status {
+        lines.push(format!(
+            "  owed atomic xmr:   {}",
+            format_number(status.cumulative_owed_atomic)
         ));
         lines.push(format!(
-            "  shares:   {} accepted, {} rejected",
-            format_number(status.accepted_shares.unwrap_or_default()),
-            format_number(status.rejected_shares.unwrap_or_default())
+            "  voucher watermark: {}",
+            format_number(status.last_voucher_cumulative)
         ));
         lines.push(format!(
-            "  owed:     {}",
-            status.owed.as_deref().unwrap_or("n/a")
+            "  shares:            {}",
+            format_unsigned_number(status.shares)
         ));
         lines.push(format!(
-            "  paid:     {}",
-            status.paid.as_deref().unwrap_or("n/a")
+            "  work:              {}",
+            format_unsigned_number(status.work)
+        ));
+        lines.push(format!(
+            "  last share ms:     {}",
+            format_last_share(status.last_share_ms)
         ));
     } else {
         lines.push("  status:   unavailable".to_string());
@@ -490,9 +567,10 @@ pub fn render_status_sections(
 
 async fn checkpoint(verbose: bool) -> Result<VoucherOut, CliError> {
     let config = load_config(&default_config_path()?)?;
-    let voucher_out = ApiClient::new(&config.api_base_url)
-        .request_voucher(&config.identity.address)
-        .await?;
+    let voucher_out =
+        ApiClient::with_tor_socks5(&config.api_base_url, config.tor_socks5.as_deref())?
+            .request_voucher(&config.identity.address)
+            .await?;
     let voucher: Voucher = voucher_out.clone().into();
     let write = save_latest_voucher(&default_voucher_path()?, &voucher)?;
 
@@ -516,7 +594,7 @@ async fn checkpoint(verbose: bool) -> Result<VoucherOut, CliError> {
 async fn restore() -> Result<(), CliError> {
     let config = load_config(&default_config_path()?)?;
     let voucher = load_cached_voucher()?;
-    ApiClient::new(&config.api_base_url)
+    ApiClient::with_tor_socks5(&config.api_base_url, config.tor_socks5.as_deref())?
         .restore(&voucher)
         .await?;
 
@@ -588,21 +666,72 @@ async fn voucher_loop(miner_pid: u32, interval_seconds: u64) -> Result<(), CliEr
 }
 
 fn ensure_config(
-    api_base_url: &str,
-    pool_url: &str,
+    api_base_url: Option<&str>,
+    pool_url: Option<&str>,
+    tor_socks5: Option<&str>,
     pool_tls: bool,
     voucher_interval_seconds: u64,
 ) -> Result<(StoredConfig, bool), CliError> {
-    load_or_create_config(
+    let default_api_base_url = api_base_url.unwrap_or(DEFAULT_API_BASE_URL);
+    let default_pool_url = pool_url.unwrap_or(DEFAULT_POOL_URL);
+    let (mut config, created) = load_or_create_config(
         &default_config_path()?,
         &ConfigDefaults {
-            api_base_url: api_base_url.to_string(),
-            mining_pool_url: pool_url.to_string(),
+            api_base_url: default_api_base_url.to_string(),
+            mining_pool_url: default_pool_url.to_string(),
             mining_pool_tls: pool_tls,
+            tor_socks5: tor_socks5.map(str::to_string),
             voucher_interval_seconds,
         },
     )
-    .map_err(CliError::from)
+    .map_err(CliError::from)?;
+
+    let mut changed = false;
+    if let Some(api_base_url) = api_base_url {
+        config.api_base_url = api_base_url.to_string();
+        changed = true;
+    }
+    if let Some(pool_url) = pool_url {
+        config.mining_pool_url = pool_url.to_string();
+        changed = true;
+    }
+    if let Some(tor_socks5) = tor_socks5 {
+        config.tor_socks5 = Some(tor_socks5.to_string());
+        changed = true;
+    }
+    if pool_tls && !config.mining_pool_tls {
+        config.mining_pool_tls = pool_tls;
+        changed = true;
+    }
+
+    if changed && !created {
+        save_config(&default_config_path()?, &config)?;
+    }
+
+    Ok((config, created))
+}
+
+fn reject_raw_rofl_app_pool_url(pool_url: &str) -> Result<(), CliError> {
+    let host = pool_host(pool_url).to_ascii_lowercase();
+    if host == "rofl.app" || host.ends_with(".rofl.app") {
+        return Err(CliError::UnsupportedRoflAppPoolUrl(pool_url.to_string()));
+    }
+
+    Ok(())
+}
+
+fn pool_host(pool_url: &str) -> &str {
+    let without_scheme = pool_url
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(pool_url);
+    let authority = without_scheme.split('/').next().unwrap_or(without_scheme);
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let host = host_port
+        .rsplit_once(':')
+        .map(|(host, _)| host)
+        .unwrap_or(host_port);
+    host.trim_matches(&['[', ']'])
 }
 
 fn load_cached_voucher() -> Result<Voucher, CliError> {
@@ -745,6 +874,34 @@ fn format_number(value: i64) -> String {
         format!("-{out}")
     } else {
         out
+    }
+}
+
+fn format_unsigned_number(value: u64) -> String {
+    let mut digits = value.to_string();
+    let mut out = String::new();
+
+    while digits.len() > 3 {
+        let tail = digits.split_off(digits.len() - 3);
+        if out.is_empty() {
+            out = tail;
+        } else {
+            out = format!("{tail},{out}");
+        }
+    }
+
+    if out.is_empty() {
+        digits
+    } else {
+        format!("{digits},{out}")
+    }
+}
+
+fn format_last_share(value: i64) -> String {
+    if value <= 0 {
+        "n/a".to_string()
+    } else {
+        format_number(value)
     }
 }
 

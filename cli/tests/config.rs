@@ -19,6 +19,7 @@ fn saves_and_loads_cli_only_profile() {
         api_base_url: "http://127.0.0.1:8081".to_string(),
         mining_pool_url: "pool.example.com:443".to_string(),
         mining_pool_tls: true,
+        tor_socks5: Some("socks5://localhost:9050".to_string()),
         voucher_interval_seconds: 300,
         identity: StoredIdentity {
             address: identity.address,

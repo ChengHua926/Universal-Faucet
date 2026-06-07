@@ -13,6 +13,7 @@ fn generates_xmrig_config_using_ethereum_address_as_username() {
         api_base_url: "http://127.0.0.1:8081".to_string(),
         mining_pool_url: "pool.example.com:443".to_string(),
         mining_pool_tls: true,
+        tor_socks5: None,
         voucher_interval_seconds: 300,
         identity: StoredIdentity {
             address: "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf".to_string(),
@@ -51,6 +52,40 @@ fn generates_xmrig_config_using_ethereum_address_as_username() {
         !object.contains_key("private_key"),
         "XMRig config must never expose the local Ethereum private key"
     );
+}
+
+#[test]
+fn generates_xmrig_config_with_tor_socks5_proxy() {
+    let stored = StoredConfig {
+        api_base_url: "http://vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion"
+            .to_string(),
+        mining_pool_url: "vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion:3333"
+            .to_string(),
+        mining_pool_tls: false,
+        tor_socks5: Some("socks5://localhost:9050".to_string()),
+        voucher_interval_seconds: 300,
+        identity: StoredIdentity {
+            address: "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf".to_string(),
+            private_key: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                .to_string(),
+        },
+    };
+
+    let config = generate_xmrig_config(
+        &stored,
+        XmrigSettings {
+            threads: 1,
+            log_file: None,
+        },
+    );
+    let json = serde_json::to_value(config).expect("json");
+
+    assert_eq!(
+        json["pools"][0]["url"],
+        "vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion:3333"
+    );
+    assert_eq!(json["pools"][0]["tls"], false);
+    assert_eq!(json["pools"][0]["socks5"], "localhost:9050");
 }
 
 #[test]
