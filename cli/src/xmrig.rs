@@ -33,10 +33,13 @@ pub struct XmrigPoolConfig {
     pub url: String,
     pub user: String,
     pub pass: String,
+    pub coin: String,
     #[serde(rename = "rig-id")]
     pub rig_id: String,
     pub keepalive: bool,
     pub tls: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sni: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub socks5: Option<String>,
 }
@@ -53,12 +56,40 @@ pub fn generate_xmrig_config(config: &StoredConfig, settings: XmrigSettings) -> 
             url: config.mining_pool_url.clone(),
             user: config.identity.address.clone(),
             pass: "x".to_string(),
+            coin: "monero".to_string(),
             rig_id: config.identity.address.clone(),
             keepalive: true,
-            tls: config.mining_pool_tls,
+            tls: config.mining_pool_tls || is_stratum_ssl_pool_url(&config.mining_pool_url),
+            sni: should_enable_sni(&config.mining_pool_url).then_some(true),
             socks5: config.tor_socks5.as_deref().map(xmrig_socks5_value),
         }],
     }
+}
+
+fn should_enable_sni(pool_url: &str) -> bool {
+    let host = pool_host(pool_url).to_ascii_lowercase();
+    host == "rofl.app" || host.ends_with(".rofl.app")
+}
+
+fn is_stratum_ssl_pool_url(pool_url: &str) -> bool {
+    pool_url
+        .trim_start()
+        .to_ascii_lowercase()
+        .starts_with("stratum+ssl://")
+}
+
+fn pool_host(pool_url: &str) -> &str {
+    let without_scheme = pool_url
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(pool_url);
+    let authority = without_scheme.split('/').next().unwrap_or(without_scheme);
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let host = host_port
+        .rsplit_once(':')
+        .map(|(host, _)| host)
+        .unwrap_or(host_port);
+    host.trim_matches(&['[', ']'])
 }
 
 fn xmrig_socks5_value(proxy: &str) -> String {

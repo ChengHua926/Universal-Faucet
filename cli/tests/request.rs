@@ -1,6 +1,7 @@
 use clap::{CommandFactory, Parser};
 use drip_cli::commands::{render_error, run, Cli, CliError, Commands};
 use pretty_assertions::assert_eq;
+use std::process::Command;
 
 #[test]
 fn user_facing_command_is_drip() {
@@ -44,17 +45,50 @@ fn raw_rofl_app_pool_error_is_actionable() {
     assert_eq!(
         render_error(&error),
         [
-            "error: direct rofl.app pool URL is not supported by XMRig",
+            "error: unsupported rofl.app pool URL",
             "",
-            "XMRig does not send TLS SNI, so rofl.app passthrough drops the connection.",
+            "Use stratum+ssl:// so drip can enable SNI in the generated XMRig config.",
             "",
-            "Use one of:",
-            "  DRIP_POOL_URL=<operator-relay-host>:3333",
-            "  DRIP_POOL_URL=<tor-onion-stratum-host>:3333",
+            "Example:",
+            "  DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443",
             "",
             "Current: p3333.machine.rofl.app:443",
         ]
         .join("\n")
+    );
+}
+
+#[test]
+fn start_allows_rofl_stratum_ssl_pool_url() {
+    let temp_dir = tempfile::tempdir().expect("temp dir");
+    let output = Command::new(env!("CARGO_BIN_EXE_drip"))
+        .env("DRIP_HOME", temp_dir.path())
+        .args([
+            "--api-base-url",
+            "https://p8080.m269.opf-mainnet-rofl-55.rofl.app",
+            "--pool-url",
+            "stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443",
+            "start",
+            "--threads",
+            "1",
+            "--xmrig-path",
+            "/usr/bin/true",
+            "--voucher-interval-seconds",
+            "3600",
+        ])
+        .output()
+        .expect("run drip start");
+
+    assert!(
+        output.status.success(),
+        "stdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
+    assert!(
+        stdout.contains("Mining started"),
+        "expected start success, got {stdout}"
     );
 }
 

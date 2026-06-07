@@ -85,6 +85,7 @@ user    = local Ethereum address
 pass    = x
 rig-id  = local Ethereum address
 tls     = config.mining_pool_tls
+sni     = true for rofl.app pool hosts
 socks5  = config.tor_socks5, when set
 ```
 
@@ -92,8 +93,15 @@ Users do not install or run XMRig manually.
 
 ## 6. ROFL / Tor Behavior
 
-Raw clearnet `*.rofl.app` Stratum endpoints are rejected by the CLI because
-XMRig does not send TLS SNI. Use one of:
+The production Stratum endpoint is direct TLS to ROFL:
+
+```text
+DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
+```
+
+For `rofl.app` hosts, `drip` emits `sni = true` in the generated XMRig pool
+config. Unsupported raw `rofl.app` URLs without `stratum+ssl://` are rejected.
+Fallback paths:
 
 ```text
 DRIP_POOL_URL=<operator-clearnet-relay>:3333
@@ -101,14 +109,11 @@ DRIP_POOL_URL=<onion-stratum-host>.onion:3333
 DRIP_TOR_SOCKS5=socks5://127.0.0.1:9050
 ```
 
-The provided onion endpoint is a Stratum endpoint:
+The production HTTP API is:
 
 ```text
-vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion:3333
+DRIP_API_BASE_URL=https://p8080.m269.opf-mainnet-rofl-55.rofl.app
 ```
-
-`DRIP_API_BASE_URL` is separate. Only point it at the same onion if the faucet
-operator exposes the HTTP API there.
 
 ## 7. How To Test Without Tor
 
@@ -123,8 +128,8 @@ Local profile and config generation:
 ```bash
 export DRIP_HOME=/private/tmp/drip-play
 cargo run -p drip-cli -- identity \
-  --api-base-url http://127.0.0.1:8081 \
-  --pool-url 127.0.0.1:3333
+  --api-base-url https://p8080.m269.opf-mainnet-rofl-55.rofl.app \
+  --pool-url stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
 cat /private/tmp/drip-play/config.json
 ```
 
@@ -146,18 +151,17 @@ lifecycle.
 Need:
 
 ```text
-1. Tor running on localhost:9050, or a clearnet relay pool URL.
-2. Actual faucet HTTP API base URL.
-3. Faucet Stratum endpoint reachable by XMRig.
+1. Faucet HTTP API reachable.
+2. Faucet Stratum endpoint reachable by XMRig.
+3. Shares credited by the faucet backend.
 ```
 
-Live Tor command shape:
+Live command shape:
 
 ```bash
-export DRIP_HOME=/private/tmp/drip-onion
-export DRIP_POOL_URL=vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion:3333
-export DRIP_TOR_SOCKS5=socks5://127.0.0.1:9050
-export DRIP_API_BASE_URL=<actual-faucet-http-api-url>
+export DRIP_HOME=/private/tmp/drip-prod
+export DRIP_API_BASE_URL=https://p8080.m269.opf-mainnet-rofl-55.rofl.app
+export DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
 
 cargo run -p drip-cli -- identity
 cargo run -p drip-cli -- start --threads 1
@@ -180,11 +184,32 @@ faucet /voucher checkpoint and local cache write
 voucher highest-cumulative cache rule
 ```
 
-Not verified live yet:
+Live production smoke verified on 2026-06-07:
 
 ```text
-XMRig -> Tor -> onion Stratum
-real faucet API URL
-real faucet voucher signature semantics
-real share accrual while mining
+GET /pool returned upstream connected
+GET /onion returned onion stratum/API metadata
+drip identity created a local profile with production defaults
+drip start launched bundled XMRig against stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
+generated XMRig config included tls=true, sni=true, coin=monero
+XMRig received RandomX job rx/0 and submitted 1 accepted share
+GET /miner/:addr reported shares=1, work=20000, cumulative_owed_atomic=740
+drip checkpoint stored a cumulative voucher for 740
+drip restore replayed that voucher successfully
+drip withdraw rendered chain/token/recipient handoff preview
+```
+
+Observed caveat:
+
+```text
+The live XMRig session later logged read error: "end of file" and stopped active
+mining after the accepted share. The share/voucher path worked, but connection
+stability should be retested with a longer run before shipping a public release.
+```
+
+Still not implemented:
+
+```text
+real withdraw/intent submission to backend/Crossroads
+packaged release smoke on a clean user machine
 ```

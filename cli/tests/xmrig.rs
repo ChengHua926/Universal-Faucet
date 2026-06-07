@@ -40,6 +40,7 @@ fn generates_xmrig_config_using_ethereum_address_as_username() {
         "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
     );
     assert_eq!(json["pools"][0]["pass"], "x");
+    assert_eq!(json["pools"][0]["coin"], "monero");
     assert_eq!(
         json["pools"][0]["rig-id"],
         "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
@@ -86,6 +87,37 @@ fn generates_xmrig_config_with_tor_socks5_proxy() {
     );
     assert_eq!(json["pools"][0]["tls"], false);
     assert_eq!(json["pools"][0]["socks5"], "localhost:9050");
+}
+
+#[test]
+fn generates_xmrig_config_with_sni_for_rofl_stratum_ssl() {
+    let stored = StoredConfig {
+        api_base_url: "https://p8080.m269.opf-mainnet-rofl-55.rofl.app".to_string(),
+        mining_pool_url: "stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443".to_string(),
+        mining_pool_tls: false,
+        tor_socks5: None,
+        voucher_interval_seconds: 300,
+        identity: StoredIdentity {
+            address: "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf".to_string(),
+            private_key: "0x0000000000000000000000000000000000000000000000000000000000000001"
+                .to_string(),
+        },
+    };
+
+    let config = generate_xmrig_config(
+        &stored,
+        XmrigSettings {
+            threads: 1,
+            log_file: None,
+        },
+    );
+    let json = serde_json::to_value(config).expect("json");
+
+    assert_eq!(
+        json["pools"][0]["url"],
+        "stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443"
+    );
+    assert_eq!(json["pools"][0]["sni"], true);
 }
 
 #[test]

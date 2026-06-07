@@ -54,15 +54,14 @@ Useful local env:
 
 ```bash
 export DRIP_HOME=/private/tmp/drip-demo
-export DRIP_API_BASE_URL=http://127.0.0.1:8081
-# Clearnet: point at the operator relay/wrapper, not raw rofl.app.
-export DRIP_POOL_URL=127.0.0.1:3333
+export DRIP_API_BASE_URL=https://p8080.m269.opf-mainnet-rofl-55.rofl.app
+export DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
 export DRIP_POOL_TLS=false
-# Tor: point at the onion stratum endpoint directly.
+# Optional fallback: operator relay.
+# export DRIP_POOL_URL=<operator-clearnet-relay>:3333
+# Optional fallback: Tor onion stratum endpoint.
 # export DRIP_POOL_URL=vj3o34twitcqk7jxopms5mpoxeurqjfdpvlpnxgmkveld3nggmzsmtid.onion:3333
-# export DRIP_API_BASE_URL=<faucet-http-api-url>
 # export DRIP_TOR_SOCKS5=socks5://localhost:9050
-# export DRIP_POOL_TLS=false
 # export DRIP_XMRIG_PATH=/absolute/path/to/xmrig
 ```
 
@@ -90,16 +89,15 @@ pool url = config.mining_pool_url
 user     = local Ethereum address
 pass     = x
 rig-id   = local Ethereum address
+sni      = true for rofl.app pool hosts
 socks5   = config.tor_socks5, when set
 cpu.rx   = one -1 affinity entry per requested thread
 ```
 
-For the ROFL faucet pool, raw clearnet `rofl.app` stratum needs an SNI relay
-because XMRig does not send SNI. `drip` should be configured with the relay
-host/port, or with the Tor onion stratum endpoint plus `DRIP_TOR_SOCKS5` when
-mining over Tor. The Stratum onion and the HTTP API base are separate settings;
-only use the same onion for `DRIP_API_BASE_URL` if the operator exposes the API
-there.
+For the ROFL faucet pool, the production Stratum URL is
+`stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443`. `drip` enables
+SNI in the generated XMRig config for `rofl.app` hosts. Relay and Tor endpoints
+remain fallback paths.
 
 Package XMRig:
 

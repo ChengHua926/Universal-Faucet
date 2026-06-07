@@ -54,10 +54,10 @@ private key must not be written to XMRig config or normal status output.
 
 ```bash
 DRIP_HOME=/private/tmp/drip-demo
-DRIP_API_BASE_URL=http://127.0.0.1:8081
-DRIP_POOL_URL=127.0.0.1:3333        # clearnet relay/wrapper, not raw rofl.app
+DRIP_API_BASE_URL=https://p8080.m269.opf-mainnet-rofl-55.rofl.app
+DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443
 DRIP_POOL_TLS=false
-DRIP_TOR_SOCKS5=socks5://localhost:9050
+DRIP_TOR_SOCKS5=socks5://localhost:9050  # optional Tor fallback only
 DRIP_XMRIG_PATH=/optional/path/to/xmrig
 ```
 
@@ -97,11 +97,9 @@ Failed voucher requests are logged and retried; they do not stop mining.
 
 Users do not install or run XMRig manually.
 
-For the ROFL faucet pool, clearnet miners cannot point XMRig directly at the raw
-`rofl.app` passthrough host because XMRig does not send TLS SNI. Configure
-`DRIP_POOL_URL` to the operator relay/wrapper. Tor miners can use the onion
-stratum endpoint directly with `DRIP_TOR_SOCKS5`. Keep `DRIP_API_BASE_URL`
-separate unless the operator explicitly exposes the HTTP API on the same onion.
+For the ROFL faucet pool, use the production `stratum+ssl://...rofl.app:443`
+Stratum URL. `drip` enables SNI in the generated XMRig config for `rofl.app`
+hosts. Operator relay and Tor onion endpoints are fallback paths.
 
 Generated pool config:
 
@@ -111,6 +109,7 @@ user      = local Ethereum address
 pass      = x
 rig-id    = local Ethereum address
 tls       = DRIP_POOL_TLS / config.mining_pool_tls
+sni       = true for rofl.app pool hosts
 socks5    = DRIP_TOR_SOCKS5 / config.tor_socks5, when set
 cpu.rx    = one -1 affinity entry per requested thread
 donations = disabled in packaged source build
@@ -130,6 +129,17 @@ cargo test --workspace
 cargo run -p drip-cli -- --help
 cargo run -p drip-cli -- identity
 DRIP_XMRIG_PLATFORM=darwin-arm64 scripts/package-drip.sh
+```
+
+Live production smoke verified on 2026-06-07:
+
+```text
+API /pool reachable and upstream connected
+bundled XMRig connected to ROFL stratum with tls=true, sni=true, coin=monero
+one accepted share credited to the CLI Ethereum address
+checkpoint returned and cached a signed cumulative voucher
+restore replayed the voucher successfully
+withdraw currently renders the target chain/token/address handoff only
 ```
 
 Demo artifact:

@@ -24,8 +24,8 @@ use crate::{
     xmrig::{default_threads, generate_xmrig_config, XmrigSettings},
 };
 
-const DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:8081";
-const DEFAULT_POOL_URL: &str = "127.0.0.1:3333";
+const DEFAULT_API_BASE_URL: &str = "https://p8080.m269.opf-mainnet-rofl-55.rofl.app";
+const DEFAULT_POOL_URL: &str = "stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443";
 const DEFAULT_VOUCHER_INTERVAL_SECONDS: u64 = 300;
 const GRACEFUL_STOP_WAIT_ATTEMPTS: usize = 150;
 
@@ -187,14 +187,12 @@ pub fn render_error(error: &CliError) -> String {
         ]
         .join("\n"),
         CliError::UnsupportedRoflAppPoolUrl(url) => [
-            "error: direct rofl.app pool URL is not supported by XMRig".to_string(),
+            "error: unsupported rofl.app pool URL".to_string(),
             String::new(),
-            "XMRig does not send TLS SNI, so rofl.app passthrough drops the connection."
-                .to_string(),
+            "Use stratum+ssl:// so drip can enable SNI in the generated XMRig config.".to_string(),
             String::new(),
-            "Use one of:".to_string(),
-            "  DRIP_POOL_URL=<operator-relay-host>:3333".to_string(),
-            "  DRIP_POOL_URL=<tor-onion-stratum-host>:3333".to_string(),
+            "Example:".to_string(),
+            "  DRIP_POOL_URL=stratum+ssl://p3333.m269.opf-mainnet-rofl-55.rofl.app:443".to_string(),
             String::new(),
             format!("Current: {url}"),
         ]
@@ -713,11 +711,18 @@ fn ensure_config(
 
 fn reject_raw_rofl_app_pool_url(pool_url: &str) -> Result<(), CliError> {
     let host = pool_host(pool_url).to_ascii_lowercase();
-    if host == "rofl.app" || host.ends_with(".rofl.app") {
+    if (host == "rofl.app" || host.ends_with(".rofl.app")) && !is_stratum_ssl_pool_url(pool_url) {
         return Err(CliError::UnsupportedRoflAppPoolUrl(pool_url.to_string()));
     }
 
     Ok(())
+}
+
+fn is_stratum_ssl_pool_url(pool_url: &str) -> bool {
+    pool_url
+        .trim_start()
+        .to_ascii_lowercase()
+        .starts_with("stratum+ssl://")
 }
 
 fn pool_host(pool_url: &str) -> &str {
