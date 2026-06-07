@@ -143,6 +143,7 @@ Stored voucher shape:
 Read [docs/handoff.md](docs/handoff.md) for the current handoff.
 Read [docs/faucet-integration.md](docs/faucet-integration.md) for the faucet
 API/Tor integration boundary.
+Read [docs/demo-playbook.md](docs/demo-playbook.md) for demo install/run steps.
 Read [docs/cli-ux.md](docs/cli-ux.md) for CLI UX rules and demo generation.
 
 ## Verification
