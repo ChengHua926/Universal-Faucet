@@ -24,22 +24,9 @@ The main protocol, backend, pool, contract, and routing work lives at
 This repository is the client interface: local identity, bundled mining client,
 process lifecycle, status, vouchers, and withdrawal intent.
 
-![drip core CLI flow](docs/demo/drip-core-flow.gif)
-
 ## How It Works
 
-```mermaid
-flowchart LR
-  U["developer or agent"] --> D["drip CLI"]
-  D --> I["local EVM identity"]
-  D --> X["bundled XMRig"]
-  X --> S["Infinite Drip Stratum endpoint"]
-  S --> R["RandomX mining pool"]
-  R --> C["faucet credit / signed voucher"]
-  C --> M["mining pool token"]
-  M --> Xroads["Crossroads routing"]
-  Xroads --> T["requested token on target chain"]
-```
+![Infinite Drip architecture](docs/assets/architecture-pitch.png)
 
 First principles:
 
@@ -55,6 +42,8 @@ the production RandomX endpoint, reads faucet accounting, caches the latest
 cumulative signed voucher, and records the chain/token/recipient the user wants.
 
 ## Use
+
+![drip core CLI flow](docs/demo/drip-core-flow.gif)
 
 ```bash
 drip identity
