@@ -5,13 +5,12 @@
 Use this GIF:
 
 ```text
-docs/demo/drip-production-flow.gif
+docs/demo/drip-core-flow.gif
 ```
 
 It shows the user flow:
 
 ```text
-install drip
 drip identity
 drip start --threads 1
 drip status

@@ -145,7 +145,7 @@ withdraw currently renders the target chain/token/address handoff only
 Demo artifact:
 
 ```text
-docs/demo/drip-production-flow.gif
+docs/demo/drip-core-flow.gif
 ```
 
 Faucet integration boundary:
